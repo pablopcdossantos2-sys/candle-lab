@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "candle-lab-b3"
+version = "0.9.0"
+description = "Laboratório de reconstrução e simulação intrabar para futuros da B3"
+requires-python = ">=3.11"
+dependencies = [
+  "duckdb>=1.1,<2",
+  "fastapi>=0.115,<1",
+  "uvicorn>=0.30,<1",
+  "python-multipart>=0.0.9,<1"
+]
+
+[project.scripts]
+candle-lab = "candle_lab.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+"candle_lab.web" = ["static/*.html", "static/*.css", "static/*.js"]
