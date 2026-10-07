@@ -15,6 +15,7 @@ from candle_lab.trajectory import classify_rule_family, deterministic_kmeans
 from candle_lab.transitions import analyze_stability_and_transitions
 from candle_lab.bulk import bulk_import_profit_file, aggregate_candles_sql, reconcile_store_references, export_session_parquet
 from candle_lab.reconciliation import ReferenceCandle
+from candle_lab.slice import slice_profit_trades
 
 UTC = timezone.utc
 
@@ -286,6 +287,62 @@ class BulkImportTests(unittest.TestCase):
             self.assertEqual(resumed.resumed_from_row, 1000)
             self.assertEqual(resumed.processed_rows, 1001)
             self.assertEqual(len(store.load_trades("WINRESUME")), 1001)
+
+
+class SelectiveSliceTests(unittest.TestCase):
+    def test_selective_slice_uses_half_open_interval_and_preserves_profit_order(self):
+        content = (
+            "WINSEL,07/10/26,10:03:00,3 - Comprador,1030,1,85 - Vendedor,Comprador\n"
+            "WINSEL,07/10/26,10:02:30,3 - Comprador,1025,2,85 - Vendedor,Comprador\n"
+            "WINSEL,07/10/26,10:02:00,3 - Comprador,1020,1,85 - Vendedor,Vendedor\n"
+            "WINSEL,07/10/26,10:01:59,3 - Comprador,1015,3,85 - Vendedor,RLP\n"
+            "WINSEL,07/10/26,10:01:00,3 - Comprador,1010,2,85 - Vendedor,Vendedor\n"
+            "WINSEL,07/10/26,10:00:59,3 - Comprador,1005,1,85 - Vendedor,Comprador\n"
+        )
+        tz = ZoneInfo("America/Sao_Paulo")
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = root / "WINSEL_FULL.csv"
+            output = root / "slice.csv"
+            source.write_text(content, encoding="cp1252")
+
+            result = slice_profit_trades(
+                source,
+                start=datetime(2026,10,7,10,1,tzinfo=tz),
+                end=datetime(2026,10,7,10,3,tzinfo=tz),
+                output_path=output,
+                symbol="WINSEL",
+            )
+            self.assertEqual(result.matched_rows, 4)
+            self.assertEqual(result.source_order, "DESCENDING")
+            self.assertTrue(result.stopped_early)
+            raw = output.read_text(encoding="cp1252")
+            self.assertNotIn("10:03:00", raw)
+            self.assertNotIn("10:00:59", raw)
+
+            trades, report = import_csv_with_report(
+                output, symbol="WINSEL", tick_size=5.0, source="selected_slice"
+            )
+            self.assertEqual(report.source_order, "DESCENDING")
+            self.assertEqual([t.ts.strftime("%H:%M:%S") for t in trades],
+                             ["10:01:00","10:01:59","10:02:00","10:02:30"])
+
+    def test_reference_overview_works_without_any_tick_trades(self):
+        tz = ZoneInfo("America/Sao_Paulo")
+        with tempfile.TemporaryDirectory() as tmp:
+            store = MarketStore(Path(tmp) / "lab.duckdb")
+            refs = [
+                ReferenceCandle("WINONLY", datetime(2026,10,7,10,0,tzinfo=tz), 60, 200,202,199,201,volume=10),
+                ReferenceCandle("WINONLY", datetime(2026,10,7,10,1,tzinfo=tz), 60, 201,203,200,202,volume=11),
+            ]
+            store.add_reference_candles(refs, tick_size=5.0)
+            self.assertEqual(store.list_sessions("WINONLY"), [])
+            sessions = store.list_reference_sessions("WINONLY")
+            self.assertEqual(len(sessions), 1)
+            self.assertEqual(sessions[0]["candles"], 2)
+            overview = store.reference_overview()
+            self.assertEqual(overview[0]["symbol"], "WINONLY")
+            self.assertEqual(overview[0]["interval_seconds"], 60)
 
 
 class StorageTests(unittest.TestCase):
