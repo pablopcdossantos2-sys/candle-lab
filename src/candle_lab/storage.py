@@ -124,7 +124,7 @@ class MarketStore:
         raw=f"{data_kind}|{source}|{file_name}|{symbol}|{first_ts}|{last_ts}|{datetime.now().isoformat()}"
         batch_id=hashlib.sha256(raw.encode()).hexdigest()[:20]
         with self.connect() as con:
-            con.execute("INSERT INTO import_batches VALUES (?,?,?,?,?,?,?,?,?,?,current_timestamp)",
+            con.execute("INSERT INTO import_batches VALUES (?,?,?,?,?,?,?,?,?,?,?,current_timestamp)",
                 [batch_id,data_kind,source,file_name,symbol,first_ts,last_ts,rows_received,rows_inserted,duplicates,
                  json.dumps(diagnostics or {},ensure_ascii=False,default=str)])
         return batch_id
