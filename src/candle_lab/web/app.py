@@ -11,7 +11,7 @@ from fastapi.staticfiles import StaticFiles
 
 from ..candles import build_candles, floor_time
 from ..importers import import_csv_with_report, import_generic_csv
-from ..reconciliation import ReferenceCandle, import_reference_candles, reconcile_candles
+from ..reconciliation import ReferenceCandle, import_reference_candles, reconcile_candles, reconcile_observed_window
 from ..research import build_research_index, intrabar_comparison_payload, research_matches
 from ..quality import assess_library_quality
 from ..services import candle_detail_payload, candle_payload, similar_candles_payload
@@ -60,11 +60,19 @@ def create_app(db_path:str|Path=DEFAULT_DB)->FastAPI:
     @app.get("/api/import-batches")
     def import_batches(limit:int=Query(30,ge=1,le=500)):return store.list_import_batches(limit)
 
+    async def _save_upload(file: UploadFile, suffix: str) -> Path:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as temp:
+            while True:
+                chunk = await file.read(8 * 1024 * 1024)
+                if not chunk:
+                    break
+                temp.write(chunk)
+            return Path(temp.name)
+
     @app.post("/api/import-csv")
     async def import_csv(file:UploadFile=File(...),symbol:str=Form(""),tick_size:float=Form(...),source:str=Form("profit_csv")):
         suffix=Path(file.filename or "trades.csv").suffix or ".csv"
-        with tempfile.NamedTemporaryFile(delete=False,suffix=suffix) as temp:
-            temp.write(await file.read());temp_path=Path(temp.name)
+        temp_path = await _save_upload(file, suffix)
         try:
             trades,report=import_csv_with_report(temp_path,symbol=symbol or None,tick_size=tick_size,source=source)
             result=store.add_trades(trades,tick_size=tick_size)
@@ -82,8 +90,7 @@ def create_app(db_path:str|Path=DEFAULT_DB)->FastAPI:
     async def import_reference(file:UploadFile=File(...),symbol:str=Form(""),tick_size:float=Form(...),
         interval_seconds:int=Form(...),source:str=Form("profit_ohlc_reference")):
         suffix=Path(file.filename or "reference.csv").suffix or ".csv"
-        with tempfile.NamedTemporaryFile(delete=False,suffix=suffix) as temp:
-            temp.write(await file.read());temp_path=Path(temp.name)
+        temp_path = await _save_upload(file, suffix)
         try:
             refs,report=import_reference_candles(temp_path,symbol=symbol or None,tick_size=tick_size,interval_seconds=interval_seconds,source=source)
             result=store.add_reference_candles(refs,tick_size=tick_size)
@@ -125,7 +132,7 @@ def create_app(db_path:str|Path=DEFAULT_DB)->FastAPI:
         if not refs:return {"interval_seconds":interval_seconds,"summary":{"reference_candles":0,"reconstructed_candles":len(build_candles(trades,interval_seconds)),
             "exact":0,"ohlc_match":0,"mismatch":0,"no_data":0,"ohlc_match_rate":0.0,"exact_rate":0.0},"results":[],
             "message":"Nenhuma referência OHLC importada para este ativo/pregão/intervalo."}
-        return reconcile_candles(trades,refs,interval_seconds=interval_seconds,tick_size=store.tick_size(symbol))
+        return reconcile_observed_window(trades,refs,interval_seconds=interval_seconds,tick_size=store.tick_size(symbol))
 
     def _ensure_research_index(symbol:str,interval_seconds:int,*,force:bool=False):
         status=store.research_index_status(symbol,interval_seconds);refreshed=False
