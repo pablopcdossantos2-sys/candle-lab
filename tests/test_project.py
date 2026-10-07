@@ -243,6 +243,51 @@ class BulkImportTests(unittest.TestCase):
             self.assertGreater(parquet.stat().st_size, 0)
 
 
+    def test_bulk_import_resumes_after_interruption(self):
+        start = datetime(2026, 10, 7, 10, 16, 40)
+        lines = []
+        for i in range(1001):
+            ts = start - timedelta(seconds=i)
+            lines.append(
+                f"WINRESUME,{ts.strftime('%d/%m/%y')},{ts.strftime('%H:%M:%S')},"
+                f"3 - Comprador,{1000 + (i % 3) * 5},1,85 - Vendedor,Comprador\n"
+            )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            csv_path = root / "WINRESUME_TRADES.csv"
+            csv_path.write_text("".join(lines), encoding="cp1252")
+            store = MarketStore(root / "lab.duckdb")
+            interrupted = {"done": False}
+
+            def stop_after_first_chunk(info):
+                if info.get("phase") == "import" and not interrupted["done"]:
+                    interrupted["done"] = True
+                    raise RuntimeError("interrupcao simulada")
+
+            with self.assertRaises(RuntimeError):
+                bulk_import_profit_file(
+                    csv_path, store=store, tick_size=5.0, chunk_rows=1000,
+                    progress=stop_after_first_chunk,
+                )
+
+            with store.connect() as con:
+                status = con.execute(
+                    "SELECT status,processed_rows,byte_offset FROM bulk_imports"
+                ).fetchone()
+            self.assertEqual(status[0], "FAILED")
+            self.assertEqual(status[1], 1000)
+            self.assertGreater(status[2], 0)
+            self.assertEqual(len(store.load_trades("WINRESUME")), 1000)
+
+            resumed = bulk_import_profit_file(
+                csv_path, store=store, tick_size=5.0, chunk_rows=1000
+            )
+            self.assertEqual(resumed.resumed_from_row, 1000)
+            self.assertEqual(resumed.processed_rows, 1001)
+            self.assertEqual(len(store.load_trades("WINRESUME")), 1001)
+
+
 class StorageTests(unittest.TestCase):
     def test_duckdb_and_parquet_roundtrip(self):
         start = datetime(2026, 10, 7, 12, 0, tzinfo=UTC)
