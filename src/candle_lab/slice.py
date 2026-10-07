@@ -1,0 +1,187 @@
+from __future__ import annotations
+
+import csv
+import hashlib
+from dataclasses import asdict, dataclass
+from datetime import datetime
+from pathlib import Path
+from typing import Callable
+
+from .importers import _detect_dialect, _detect_encoding, _looks_like_profit_headerless_trade, _parse_datetime
+
+
+@dataclass(frozen=True, slots=True)
+class SliceResult:
+    source_path: str
+    output_path: str
+    source_size: int
+    output_size: int
+    source_order: str
+    symbol: str
+    start: str
+    end: str
+    scanned_rows: int
+    matched_rows: int
+    stopped_early: bool
+    sha256: str
+
+    def to_dict(self) -> dict[str, object]:
+        return asdict(self)
+
+
+def _probe(path: Path, max_rows: int = 2048) -> tuple[str, csv.Dialect, str, str]:
+    encoding = _detect_encoding(path)
+    with path.open("r", encoding=encoding, newline="") as handle:
+        sample = handle.read(8192)
+    dialect = _detect_dialect(sample)
+
+    timestamps: list[datetime] = []
+    symbols: set[str] = set()
+    with path.open("r", encoding=encoding, newline="") as handle:
+        reader = csv.reader(handle, dialect=dialect)
+        for row in reader:
+            if not row or not any(cell.strip() for cell in row):
+                continue
+            if not timestamps and not _looks_like_profit_headerless_trade(row):
+                raise ValueError(
+                    "O recorte seletivo v0.12 espera o layout real de Trades do Profit sem cabeçalho e com 8 colunas."
+                )
+            if len(row) != 8:
+                raise ValueError(f"Layout inesperado: {len(row)} colunas; esperado=8")
+            symbols.add(row[0].strip().upper())
+            timestamps.append(_parse_datetime(None, row[1], row[2]))
+            if len(timestamps) >= max_rows:
+                break
+
+    if not timestamps:
+        raise ValueError("Arquivo de Trades vazio")
+    if len(symbols) != 1:
+        raise ValueError(f"O arquivo contém mais de um ativo: {', '.join(sorted(symbols))}")
+
+    asc = desc = 0
+    for left, right in zip(timestamps, timestamps[1:]):
+        if right > left:
+            asc += 1
+        elif right < left:
+            desc += 1
+    if desc and not asc:
+        order = "DESCENDING"
+    elif asc and not desc:
+        order = "ASCENDING"
+    elif not asc and not desc:
+        order = "SAME_TIMESTAMP"
+    else:
+        order = "MIXED"
+    if order not in {"ASCENDING", "DESCENDING"}:
+        raise ValueError(f"Ordem temporal {order}; o recorte seletivo exige arquivo monotônico.")
+    return encoding, dialect, next(iter(symbols)), order
+
+
+def _sha256(path: Path, block_size: int = 8 * 1024 * 1024) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        while True:
+            block = handle.read(block_size)
+            if not block:
+                break
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def slice_profit_trades(
+    source_path: str | Path,
+    *,
+    start: datetime,
+    end: datetime,
+    output_path: str | Path | None = None,
+    symbol: str | None = None,
+    progress: Callable[[dict[str, object]], None] | None = None,
+) -> SliceResult:
+    """Extrai [start, end) do CSV original sem carregar o arquivo inteiro em memória."""
+    source = Path(str(source_path).strip().strip('"')).expanduser().resolve()
+    if not source.exists() or not source.is_file():
+        raise FileNotFoundError(f"Arquivo não encontrado: {source}")
+    if source.suffix.lower() != ".csv":
+        raise ValueError("O arquivo de Trades precisa ser .csv")
+    if start.tzinfo is None or end.tzinfo is None:
+        raise ValueError("start e end precisam possuir timezone")
+    if end <= start:
+        raise ValueError("O final do intervalo deve ser posterior ao início")
+
+    encoding, dialect, file_symbol, source_order = _probe(source)
+    symbol_used = (symbol or file_symbol).strip().upper()
+    if symbol_used != file_symbol:
+        raise ValueError(f"Ativo informado ({symbol_used}) difere do arquivo ({file_symbol})")
+
+    if output_path is None:
+        safe_start = start.strftime("%Y%m%d-%H%M%S")
+        safe_end = end.strftime("%H%M%S")
+        output = Path("data/slices") / f"{symbol_used}_{safe_start}_{safe_end}_TRADES.csv"
+    else:
+        output = Path(output_path)
+    output = output.expanduser().resolve()
+    output.parent.mkdir(parents=True, exist_ok=True)
+
+    scanned = matched = 0
+    stopped_early = False
+    source_size = source.stat().st_size
+
+    with source.open("r", encoding=encoding, newline="") as src, output.open("w", encoding=encoding, newline="") as dst:
+        reader = csv.reader(src, dialect=dialect)
+        writer = csv.writer(dst, dialect=dialect)
+        for row in reader:
+            if not row or not any(cell.strip() for cell in row):
+                continue
+            scanned += 1
+            if len(row) != 8:
+                raise ValueError(f"Linha {scanned}: esperado=8 colunas; recebido={len(row)}")
+            ts = _parse_datetime(None, row[1], row[2])
+
+            if source_order == "DESCENDING":
+                if ts >= end:
+                    pass
+                elif ts < start:
+                    stopped_early = True
+                    break
+                else:
+                    writer.writerow(row)
+                    matched += 1
+            else:
+                if ts < start:
+                    pass
+                elif ts >= end:
+                    stopped_early = True
+                    break
+                else:
+                    writer.writerow(row)
+                    matched += 1
+
+            if progress and scanned % 100_000 == 0:
+                progress({
+                    "scanned_rows": scanned,
+                    "matched_rows": matched,
+                    "source_order": source_order,
+                    "source_bytes": source_size,
+                })
+
+    if matched == 0:
+        output.unlink(missing_ok=True)
+        raise ValueError(
+            "Nenhum negócio foi encontrado no intervalo selecionado. "
+            "Confirme contrato, data e horário."
+        )
+
+    return SliceResult(
+        source_path=str(source),
+        output_path=str(output),
+        source_size=source_size,
+        output_size=output.stat().st_size,
+        source_order=source_order,
+        symbol=symbol_used,
+        start=start.isoformat(),
+        end=end.isoformat(),
+        scanned_rows=scanned,
+        matched_rows=matched,
+        stopped_early=stopped_early,
+        sha256=_sha256(output),
+    )
