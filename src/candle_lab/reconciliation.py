@@ -299,10 +299,35 @@ def reconcile_observed_window(
     last_ts = trades[-1].ts
     complete_refs: list[ReferenceCandle] = []
     partial_refs: list[ReferenceCandle] = []
+    first_bucket = floor_time(first_ts, interval_seconds)
+    last_bucket = floor_time(last_ts, interval_seconds)
+    boundary_tolerance = min(5.0, interval_seconds * 0.10)
     for ref in refs:
         overlaps = ref.end > first_ts and ref.start <= last_ts
         if not overlaps:
             continue
+
+        if first_bucket < ref.start < last_bucket:
+            complete_refs.append(ref)
+            continue
+
+        if ref.start == first_bucket and ref.start < last_bucket:
+            # Um recorte iniciado praticamente na abertura do candle pode contê-lo por inteiro.
+            if (first_ts - ref.start).total_seconds() <= boundary_tolerance:
+                complete_refs.append(ref)
+            else:
+                partial_refs.append(ref)
+            continue
+
+        if ref.start == last_bucket:
+            elapsed = (last_ts - ref.start).total_seconds()
+            # O último candle só é aceito quando o arquivo alcança praticamente todo o intervalo.
+            if elapsed >= interval_seconds - boundary_tolerance:
+                complete_refs.append(ref)
+            else:
+                partial_refs.append(ref)
+            continue
+
         if ref.start >= first_ts and ref.end <= last_ts:
             complete_refs.append(ref)
         else:
