@@ -57,12 +57,14 @@ class MarketStore:
         raw=f"{ref.symbol}|{ref.start.isoformat()}|{ref.interval_seconds}|{ref.source}"
         return hashlib.sha256(raw.encode()).hexdigest()
 
-    def reset_builtin_sample(self,symbol:str="WINV26")->None:
+    def reset_builtin_sample(self,symbol:str="WINLAB06")->None:
+        """Remove somente a demonstração interna; nunca apaga dados reais do usuário."""
         with self.connect() as con:
-            con.execute("DELETE FROM trades WHERE source LIKE 'synthetic_sample_%' OR symbol=?",[symbol])
-            con.execute("DELETE FROM reference_candles WHERE source LIKE 'synthetic_truth_%' OR symbol=?",[symbol])
-            con.execute("DELETE FROM research_index WHERE symbol=?",[symbol])
-            con.execute("DELETE FROM session_quality WHERE symbol=?",[symbol])
+            con.execute("DELETE FROM trades WHERE source LIKE 'synthetic_sample_%' OR symbol='WINLAB06'")
+            con.execute("DELETE FROM reference_candles WHERE source LIKE 'synthetic_truth_%' OR symbol='WINLAB06'")
+            con.execute("DELETE FROM research_index WHERE symbol='WINLAB06'")
+            con.execute("DELETE FROM session_quality WHERE symbol='WINLAB06'")
+            con.execute("DELETE FROM instruments WHERE symbol='WINLAB06'")
 
     def upsert_instrument(self,symbol:str,tick_size:float)->None:
         with self.connect() as con:
