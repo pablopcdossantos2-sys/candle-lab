@@ -2,7 +2,7 @@
 
 **Laboratório local para investigar como candles de futuros da B3 são formados negócio a negócio.**
 
-Versão atual: **0.9.0**
+Versão atual: **0.10.0**
 
 O Candle Lab B3 nasceu de uma pergunta simples: **dois candles visualmente parecidos necessariamente foram formados da mesma maneira?**
 
@@ -32,7 +32,9 @@ Ele **não é** um robô de operações, não envia ordens e não fornece recome
 
 ### 1. Importa negócios reais
 
-O importador reconhece formatos comuns em português e inglês e possui tratamento específico para campos encontrados em exportações Tick by Tick da Nelogica/Profit, como:
+A v0.10 foi ajustada com uma exportação real do Profit Ultra. Além de CSVs com cabeçalho, o importador reconhece o layout de Trades sem cabeçalho de 8 colunas observado no Profit, detecta quando o arquivo está em ordem cronológica inversa e preserva a sequência relativa do arquivo.
+
+Quando o arquivo possui cabeçalho, são reconhecidos campos como:
 
 - `Ativo`;
 - `Data`;
@@ -168,7 +170,17 @@ Transições só são contadas entre candles realmente consecutivos do mesmo pre
 
 Veja `docs/ESTABILIDADE-TRANSICOES.md`.
 
-### 11. Caminhos contrafactuais
+### 11. Validação empírica — v0.10
+
+A v0.10 foi validada com um recorte real do WINV26 de 07/10/2026 e o CSV de 1 minuto do mesmo pregão.
+
+Nos 10 candles completamente cobertos pelo recorte (14:40–14:49), abertura, máxima, mínima, fechamento e quantidade coincidiram em **10/10 candles** com a referência exportada pelo Profit. O candle de fronteira das 14:50 foi corretamente excluído por estar incompleto no arquivo de Trades.
+
+A versão também reconhece que, no CSV formatado de 1 minuto do Profit, `Volume` é financeiro e `Quantidade` é o total negociado em contratos.
+
+Veja `docs/VALIDACAO-EMPIRICA-V010.md`.
+
+### 12. Caminhos contrafactuais
 
 O programa também pode criar uma trajetória diferente que preserve o mesmo OHLC.
 
@@ -343,7 +355,15 @@ candle-lab import sample_data\nelogica_tick_exemplo.csv --tick-size 5 --source p
 ### Reconciliar trades com OHLC de referência
 
 ```powershell
-candle-lab reconcile sample_data\synthetic_win.csv sample_data\reference_win_1m.csv --symbol WINLAB06 --tick-size 5 --interval 60
+candle-lab reconcile sample_data\nelogica_tick_exemplo.csv sample_data\reference_exemplo_1m.csv --symbol WINEXEMPLO --tick-size 5 --interval 60
+```
+
+### Validação empírica de um recorte real
+
+Esse comando ignora candles de fronteira que não estejam totalmente cobertos pelo arquivo de Trades:
+
+```powershell
+candle-lab empirical-validate WINV26_TRADES.csv WINV26_1MIN.csv --symbol WINV26 --tick-size 5 --interval 60
 ```
 
 ### Reavaliar qualidade dos pregões
@@ -433,7 +453,8 @@ Para aprofundar o projeto:
 - `docs/QUALIDADE-PREGAO.md` — cobertura e elegibilidade;
 - `docs/TRAJECTORY-FAMILIES.md` — famílias e clustering;
 - `docs/ESTABILIDADE-TRANSICOES.md` — estabilidade e sequências v0.9;
-- `docs/VALIDACAO-V08.md` — validação funcional da camada de trajetórias.
+- `docs/VALIDACAO-V08.md` — validação funcional da camada de trajetórias;
+- `docs/VALIDACAO-EMPIRICA-V010.md` — primeira validação com dados reais do WINV26.
 
 ---
 
@@ -446,7 +467,8 @@ O projeto ainda está em desenvolvimento. Entre as limitações conhecidas:
 - a grade de negociação possui simplificações e ainda não identifica automaticamente todas as exceções históricas, feriados e vencimentos especiais;
 - clusters dependem do dataset e da versão do modelo;
 - frequências de transição descrevem a biblioteca atual e não devem ser interpretadas como previsão;
-- dados sintéticos demonstram funcionamento do pipeline, não validam comportamento real do WIN/WDO.
+- dados sintéticos demonstram funcionamento do pipeline, não validam comportamento real do WIN/WDO;
+- a v0.10 já foi validada em um recorte real de 10 minutos do WINV26, mas o processamento integral de um CSV de centenas de MB ainda precisa de ingestão em chunks para reduzir o uso de memória.
 
 ---
 
