@@ -12,7 +12,8 @@ dependencies = [
   "fastapi>=0.115,<1",
   "uvicorn>=0.30,<1",
   "python-multipart>=0.0.9,<1",
-  "pytz>=2025.2"
+  "pytz>=2025.2",
+  "tzdata>=2026.1"
 ]
 
 [project.scripts]
