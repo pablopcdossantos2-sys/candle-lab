@@ -18,6 +18,7 @@ from ..services import candle_detail_payload, candle_payload, similar_candles_pa
 from ..trajectory import analyze_trajectory_families
 from ..transitions import analyze_stability_and_transitions
 from ..storage import MarketStore
+from ..sample import generate_builtin_sample
 
 PACKAGE_DIR=Path(__file__).resolve().parent
 STATIC_DIR=PACKAGE_DIR/"static"
@@ -95,10 +96,9 @@ def create_app(db_path:str|Path=DEFAULT_DB)->FastAPI:
 
     @app.post("/api/load-sample")
     def load_sample():
-        sample=PROJECT_ROOT/"sample_data"/"synthetic_win.csv"
         try:
             store.reset_builtin_sample("WINLAB06")
-            trades=import_generic_csv(sample,symbol="WINLAB06",tick_size=5.0,source="synthetic_sample_v09")
+            trades=generate_builtin_sample("WINLAB06")
             result=store.add_trades(trades,tick_size=5.0)
             refs=[ReferenceCandle(symbol=c.symbol,start=c.start,interval_seconds=60,open_ticks=c.open_ticks,high_ticks=c.high_ticks,
                 low_ticks=c.low_ticks,close_ticks=c.close_ticks,volume=c.volume,trades=c.trades,source="synthetic_truth_v09")
