@@ -1,0 +1,467 @@
+# Candle Lab B3
+
+**Laboratório local para investigar como candles de futuros da B3 são formados negócio a negócio.**
+
+Versão atual: **0.9.0**
+
+O Candle Lab B3 nasceu de uma pergunta simples: **dois candles visualmente parecidos necessariamente foram formados da mesma maneira?**
+
+Um candle tradicional mostra apenas abertura, máxima, mínima e fechamento. Ele não revela a ordem em que os preços foram visitados, quantas reversões ocorreram, quanto tempo o mercado permaneceu em cada região, quantos negócios participaram do movimento ou quais caminhos intrabar poderiam produzir o mesmo OHLC.
+
+O projeto transforma esse candle pronto em um objeto de pesquisa. A aplicação importa negócios reais, reconstrói candles, permite reproduzir sua formação trade a trade, calcula métricas intrabar e compara milhares de trajetórias sem misturar dados históricos com simulações.
+
+> **Princípio central:** replay real, referência externa, métricas derivadas e simulação contrafactual permanecem identificados separadamente.
+
+---
+
+## Para quem este projeto é útil
+
+O projeto foi pensado principalmente para:
+
+- traders e estudantes de mercado interessados em microestrutura;
+- pesquisadores que desejam estudar formação intrabar;
+- usuários de WIN/WDO que possuam histórico de negócios exportável;
+- pessoas que desejam comparar candles além do simples desenho OHLC;
+- desenvolvedores interessados em construir uma biblioteca histórica auditável de trades.
+
+Ele **não é** um robô de operações, não envia ordens e não fornece recomendação de compra ou venda.
+
+---
+
+## O que o Candle Lab faz hoje
+
+### 1. Importa negócios reais
+
+O importador reconhece formatos comuns em português e inglês e possui tratamento específico para campos encontrados em exportações Tick by Tick da Nelogica/Profit, como:
+
+- `Ativo`;
+- `Data`;
+- `Tempo` ou `Hora`;
+- `Número do Negócio`;
+- `Preço`;
+- `Quantidade`;
+- `Agente Comprador`;
+- `Agente Vendedor`;
+- `Agressor`.
+
+A aplicação preserva a ordem da fonte, identifica duplicidades e registra a proveniência de cada lote importado.
+
+### 2. Reconstrói candles a partir dos negócios
+
+Os trades podem ser agregados em diferentes intervalos, como:
+
+- 1 segundo;
+- 5 segundos;
+- 15 segundos;
+- 1 minuto;
+- 5 minutos.
+
+O preço é armazenado internamente como número inteiro de ticks para evitar problemas de precisão decimal.
+
+### 3. Isola um único candle
+
+Depois de selecionar um candle, é possível observar:
+
+- todos os negócios que pertencem a ele;
+- trajetória intrabar;
+- candle sendo formado progressivamente;
+- Times & Trades;
+- volume por preço;
+- agressão acumulada, quando disponível;
+- comprador/vendedor, quando a fonte fornece esses campos.
+
+### 4. Replay negócio a negócio
+
+O candle pode ser reproduzido:
+
+- em ritmo uniforme, para estudar apenas a sequência;
+- respeitando os intervalos reais entre timestamps;
+- com diferentes multiplicadores de velocidade.
+
+### 5. DNA do candle
+
+O programa calcula métricas como:
+
+- amplitude;
+- distância total percorrida;
+- eficiência direcional;
+- corpo/range;
+- localização do fechamento;
+- ordem entre máxima e mínima;
+- tempo até os extremos;
+- revisitas a preços;
+- reversões;
+- VWAP intrabar;
+- preço de maior volume;
+- drawdown/drawup;
+- intervalo entre negócios;
+- volume/agressão por região do candle.
+
+Veja `docs/METRICAS-DNA.md`.
+
+### 6. Reconciliação com uma referência independente
+
+É possível importar um segundo CSV contendo candles OHLC e confrontá-lo com os candles reconstruídos a partir dos trades.
+
+Os resultados são classificados como:
+
+- `EXACT`;
+- `OHLC_MATCH`;
+- `MISMATCH`;
+- `NO_DATA`.
+
+Quando há divergência de preço, o sistema informa a diferença em ticks.
+
+### 7. Biblioteca histórica e qualidade dos pregões
+
+Cada importação fica registrada com sua origem. O software também mede cobertura da sessão e tenta separar:
+
+- sessões completas;
+- sessões provavelmente completas;
+- sessões parciais;
+- sessões com lacunas;
+- sessões cuja grade ainda não é conhecida.
+
+Sessões de baixa qualidade ficam fora das análises comparativas por padrão.
+
+Veja `docs/QUALIDADE-PREGAO.md`.
+
+### 8. Busca de candles semelhantes
+
+A aplicação possui dois rankings independentes:
+
+**Semelhança visual** compara o desenho final do candle.
+
+**Semelhança pelo DNA** compara características da dinâmica intrabar.
+
+Isso permite encontrar casos em que dois candles parecem quase iguais, mas foram produzidos por trajetórias muito diferentes.
+
+### 9. Famílias de trajetória
+
+A v0.8 introduziu duas formas complementares de estudar a trajetória:
+
+- famílias interpretáveis baseadas em regras;
+- clusters empíricos descobertos pelo próprio histórico.
+
+Entre as famílias atualmente reconhecidas estão impulso direto, varredura e reversão, continuação após pullback, V-shaped, V invertido, dupla excursão e range oscilatório.
+
+O clustering é determinístico e implementado em Python puro.
+
+Veja `docs/TRAJECTORY-FAMILIES.md`.
+
+### 10. Estabilidade e transições — v0.9
+
+A v0.9 deixa de olhar apenas para candles isolados e começa a estudar sua sequência temporal.
+
+O programa agora mede:
+
+- em quantos pregões determinada família apareceu;
+- quão concentrada ou distribuída ela está na biblioteca;
+- consistência entre sessões;
+- distribuição por horário, volatilidade e regime;
+- transições `família A → família B`;
+- frequência condicional histórica dessas transições;
+- sequências de três candles;
+- candle anterior, atual e seguinte ao candle selecionado.
+
+Transições só são contadas entre candles realmente consecutivos do mesmo pregão. Uma lacuna ou troca de sessão nunca cria uma transição artificial.
+
+Veja `docs/ESTABILIDADE-TRANSICOES.md`.
+
+### 11. Caminhos contrafactuais
+
+O programa também pode criar uma trajetória diferente que preserve o mesmo OHLC.
+
+Essa função é sempre marcada como **SIMULAÇÃO CONTRAFACTUAL**. Ela serve para mostrar que o mesmo candle final pode ser alcançado por caminhos distintos; não representa eventos que ocorreram no mercado.
+
+---
+
+# Como executar no Windows — modo simples
+
+Esta é a forma recomendada para quem não costuma usar terminal.
+
+## Etapa 1 — instalar o Python
+
+O computador precisa ter **Python 3.11 ou mais recente**.
+
+Se ainda não tiver Python:
+
+1. acesse <https://www.python.org/downloads/>;
+2. baixe o instalador para Windows;
+3. durante a instalação, marque a opção **Add Python to PATH** quando ela aparecer;
+4. conclua a instalação.
+
+O Candle Lab instala suas próprias bibliotecas em uma pasta isolada chamada `.venv`; isso evita misturar as dependências do projeto com outros programas Python do computador.
+
+## Etapa 2 — baixar o projeto
+
+Na página deste repositório no GitHub:
+
+1. clique no botão verde **Code**;
+2. escolha **Download ZIP**;
+3. salve o arquivo;
+4. clique com o botão direito no ZIP e escolha **Extrair tudo**;
+5. abra a pasta extraída.
+
+Também é possível usar Git, mas isso não é necessário para um usuário comum.
+
+## Etapa 3 — iniciar o Candle Lab
+
+Dentro da pasta do projeto, dê dois cliques em:
+
+`iniciar.bat`
+
+Na primeira execução o iniciador:
+
+1. cria o ambiente `.venv`;
+2. instala as dependências do Candle Lab;
+3. inicia o servidor local;
+4. abre a interface no navegador.
+
+O endereço padrão é:
+
+`http://127.0.0.1:8765`
+
+O programa é executado **no próprio computador**. Esse endereço não é um site público na internet: `127.0.0.1` significa a própria máquina.
+
+Nas execuções seguintes, basta usar `iniciar.bat` novamente. O ambiente já criado é reutilizado.
+
+## Etapa 4 — testar sem possuir dados reais
+
+Na tela inicial, clique em **Carregar amostra**.
+
+A demonstração usa o símbolo reservado `WINLAB06` e contém:
+
+- 2.880 negócios sintéticos;
+- 72 candles de 1 minuto;
+- 6 pregões artificiais;
+- diferentes trajetórias, regimes e níveis de volatilidade.
+
+Esses registros **não são dados reais de mercado**. Eles existem para testar todas as funcionalidades com segurança.
+
+Depois de carregar a amostra:
+
+1. selecione `WINLAB06`;
+2. escolha um pregão;
+3. mantenha o timeframe de 1 minuto;
+4. clique em um candle;
+5. use **Reproduzir**;
+6. observe Times & Trades, trajetória, DNA e volume por preço;
+7. execute **Pesquisar biblioteca**;
+8. execute **Descobrir famílias**;
+9. execute **Analisar estabilidade e transições**.
+
+---
+
+# Como usar seus próprios dados
+
+A aplicação foi projetada para trabalhar com trades exportados para CSV.
+
+## Exemplo com WIN
+
+Ao importar um arquivo do WIN, normalmente será necessário informar:
+
+- contrato real, por exemplo `WINV26`, caso o CSV não possua a coluna `Ativo`;
+- tick de preço: `5`.
+
+## Exemplo com WDO
+
+Em geral:
+
+- contrato real, por exemplo `WDOV26`;
+- tick de preço: `0,5`.
+
+Confirme sempre as especificações vigentes do contrato e a semântica dos campos da sua fonte.
+
+### Por que armazenar o contrato real?
+
+Prefira `WINV26`, `WINZ26`, `WDOV26` etc. a um símbolo contínuo genérico como `WINFUT`.
+
+Isso evita misturar vencimentos diferentes sem uma regra explícita de rollover.
+
+---
+
+# Onde os dados ficam
+
+Por padrão:
+
+- banco local: `data/candle_lab.duckdb`;
+- snapshot dos negócios: `data/parquet/trades.parquet`.
+
+Os CSVs importados **não são modificados**.
+
+Esses arquivos locais não são versionados no GitHub por causa do `.gitignore`.
+
+---
+
+# Forma alternativa: iniciar pelo PowerShell
+
+Abra a pasta do projeto no Explorador de Arquivos. Clique na barra de endereço, digite `powershell` e pressione Enter.
+
+Depois execute:
+
+```powershell
+.\iniciar.ps1
+```
+
+Se o Windows bloquear scripts PowerShell por política local, use preferencialmente `iniciar.bat`, que não depende da política de execução de `.ps1`.
+
+---
+
+# Instalação manual para usuários avançados
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+python -m pip install -e .
+candle-lab serve
+```
+
+Depois abra:
+
+`http://127.0.0.1:8765`
+
+---
+
+# Linha de comando
+
+A interface gráfica é suficiente para o uso normal. Os comandos abaixo são úteis para pesquisa reproduzível e automação.
+
+### Analisar um CSV sem gravar no banco
+
+```powershell
+candle-lab analyze sample_data\nelogica_tick_exemplo.csv --tick-size 5 --interval 60 --source profit_csv
+```
+
+### Importar trades
+
+```powershell
+candle-lab import sample_data\nelogica_tick_exemplo.csv --tick-size 5 --source profit_csv
+```
+
+### Reconciliar trades com OHLC de referência
+
+```powershell
+candle-lab reconcile sample_data\synthetic_win.csv sample_data\reference_win_1m.csv --symbol WINLAB06 --tick-size 5 --interval 60
+```
+
+### Reavaliar qualidade dos pregões
+
+```powershell
+candle-lab quality --symbol WINV26
+```
+
+### Pesquisar candles semelhantes
+
+```powershell
+candle-lab research --symbol WINV26 --start "2026-10-07T10:00:00-03:00" --interval 60 --same-time --same-volatility --same-context-regime --limit 8
+```
+
+### Descobrir famílias intrabar
+
+```powershell
+candle-lab trajectory --symbol WINV26 --interval 60
+```
+
+### Analisar estabilidade e transições — v0.9
+
+```powershell
+candle-lab transitions --symbol WINV26 --interval 60
+```
+
+Para incluir a sequência ao redor de um candle específico:
+
+```powershell
+candle-lab transitions --symbol WINV26 --interval 60 --start "2026-10-07T10:32:00-03:00"
+```
+
+As saídas analíticas da CLI são JSON, facilitando auditoria e estudos posteriores.
+
+---
+
+# Testes do projeto
+
+Com o ambiente instalado:
+
+```powershell
+python -m unittest discover -s tests -v
+```
+
+O workflow em `.github/workflows/tests.yml` executa a suíte no GitHub Actions em Windows e Linux, com versões suportadas de Python.
+
+---
+
+# Estrutura do repositório
+
+```text
+candle-lab/
+├─ src/candle_lab/
+│  ├─ candles.py          # agregação OHLC
+│  ├─ importers.py        # leitura/normalização de CSV
+│  ├─ metrics.py          # DNA do candle
+│  ├─ quality.py          # qualidade/cobertura de pregões
+│  ├─ reconciliation.py   # comparação com OHLC externo
+│  ├─ research.py         # índice e similaridade multi-pregão
+│  ├─ trajectory.py       # famílias e clustering intrabar
+│  ├─ transitions.py      # estabilidade e sequências v0.9
+│  ├─ storage.py          # DuckDB/Parquet
+│  └─ web/                # aplicação local
+├─ docs/                  # documentação metodológica
+├─ sample_data/           # dados sintéticos e exemplos
+├─ scripts/               # geração reproduzível das amostras
+├─ tests/                 # testes automatizados
+├─ iniciar.bat            # inicializador simples do Windows
+├─ iniciar.ps1            # inicializador PowerShell
+└─ pyproject.toml         # dependências e configuração do pacote
+```
+
+---
+
+# Documentação técnica
+
+Para aprofundar o projeto:
+
+- `docs/ESPECIFICACAO-MVP.md` — escopo e evolução funcional;
+- `docs/ARQUITETURA.md` — arquitetura do sistema;
+- `docs/MODELO-DE-DADOS.md` — organização dos dados;
+- `docs/IMPORTACAO-NELOGICA.md` — regras do importador;
+- `docs/METRICAS-DNA.md` — definições das métricas;
+- `docs/VALIDACAO-RECONCILIACAO.md` — validação com referência externa;
+- `docs/BIBLIOTECA-HISTORICA.md` — proveniência e biblioteca;
+- `docs/PESQUISA-COMPARATIVA.md` — similaridade multi-pregão;
+- `docs/QUALIDADE-PREGAO.md` — cobertura e elegibilidade;
+- `docs/TRAJECTORY-FAMILIES.md` — famílias e clustering;
+- `docs/ESTABILIDADE-TRANSICOES.md` — estabilidade e sequências v0.9;
+- `docs/VALIDACAO-V08.md` — validação funcional da camada de trajetórias.
+
+---
+
+# Limitações atuais
+
+O projeto ainda está em desenvolvimento. Entre as limitações conhecidas:
+
+- o acesso a um histórico amplo e realmente completo de microestrutura depende da fonte de dados do usuário;
+- a reconstrução de livro de ofertas MBO/MBP ainda é uma etapa futura;
+- a grade de negociação possui simplificações e ainda não identifica automaticamente todas as exceções históricas, feriados e vencimentos especiais;
+- clusters dependem do dataset e da versão do modelo;
+- frequências de transição descrevem a biblioteca atual e não devem ser interpretadas como previsão;
+- dados sintéticos demonstram funcionamento do pipeline, não validam comportamento real do WIN/WDO.
+
+---
+
+# Filosofia de pesquisa
+
+O Candle Lab procura preservar algumas regras metodológicas desde o início:
+
+1. **não apresentar simulação como histórico real**;
+2. **não misturar contratos diferentes silenciosamente**;
+3. **registrar a origem dos dados**;
+4. **medir qualidade antes de comparar pregões**;
+5. **evitar look-ahead em métricas que descrevem o contexto no instante do candle**;
+6. **manter algoritmos explicáveis e versionados**;
+7. **distinguir descrição estatística de previsão**.
+
+A pergunta que orienta o projeto continua sendo:
+
+> **Quantas estruturas internas diferentes podem existir por trás de candles que parecem iguais?**
