@@ -69,7 +69,7 @@ class MarketStore:
     def upsert_instrument(self,symbol:str,tick_size:float)->None:
         with self.connect() as con:
             con.execute("""INSERT INTO instruments(symbol,tick_size) VALUES (?,?)
-                ON CONFLICT(symbol) DO UPDATE SET tick_size=excluded.tick_size,updated_at=current_timestamp""",[symbol,tick_size])
+                ON CONFLICT(symbol) DO UPDATE SET tick_size=excluded.tick_size,updated_at=now()""",[symbol,tick_size])
 
     def add_trades(self,trades:Iterable[Trade],*,tick_size:float)->dict[str,int]:
         trades=list(trades)
