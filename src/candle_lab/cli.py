@@ -7,7 +7,7 @@ from pathlib import Path
 
 from .importers import import_csv_with_report
 from .quality import QUALITY_MODEL_VERSION, assess_library_quality
-from .reconciliation import import_reference_candles, reconcile_candles
+from .reconciliation import import_reference_candles, reconcile_candles, reconcile_observed_window
 from .research import build_research_index, research_matches
 from .trajectory import TRAJECTORY_MODEL_VERSION, analyze_trajectory_families
 from .transitions import TRANSITION_MODEL_VERSION, analyze_stability_and_transitions
@@ -41,6 +41,31 @@ def _reconcile(args):
     refs,_=import_reference_candles(args.reference_csv,symbol=args.symbol or None,tick_size=args.tick_size,
         interval_seconds=args.interval,source=args.reference_source)
     print(json.dumps(reconcile_candles(trades,refs,interval_seconds=args.interval,tick_size=args.tick_size),ensure_ascii=False,default=str,indent=2))
+
+
+def _empirical_validate(args):
+    trades, trade_report = import_csv_with_report(
+        args.trades_csv, symbol=args.symbol or None, tick_size=args.tick_size, source=args.trade_source
+    )
+    refs, reference_report = import_reference_candles(
+        args.reference_csv, symbol=args.symbol or None, tick_size=args.tick_size,
+        interval_seconds=args.interval, source=args.reference_source
+    )
+    reconciliation = reconcile_observed_window(
+        trades, refs, interval_seconds=args.interval, tick_size=args.tick_size
+    )
+    payload = {
+        "method": "validação empírica v0.10 — somente candles totalmente cobertos pelo recorte de trades",
+        "trade_import_report": trade_report.to_dict(),
+        "reference_import_report": reference_report.to_dict(),
+        "reconciliation": reconciliation,
+        "limitations": [
+            "Timestamps e sequência são limitados pela precisão e pelo layout da fonte exportada.",
+            "Candles de fronteira incompletos são excluídos da taxa de reconciliação.",
+            "Coincidência OHLC valida reconstrução contra esta referência; não certifica a fonte de mercado.",
+        ],
+    }
+    print(json.dumps(payload, ensure_ascii=False, default=str, indent=2))
 
 
 def _ensure(store,symbol,interval,force=False):
@@ -98,13 +123,14 @@ def main():
     p=sub.add_parser("analyze");p.add_argument("csv");p.add_argument("--symbol",default="");p.add_argument("--tick-size",type=float,required=True);p.add_argument("--interval",type=int,default=60);p.add_argument("--source",default="csv")
     p=sub.add_parser("import");p.add_argument("csv");p.add_argument("--symbol",default="");p.add_argument("--tick-size",type=float,required=True);p.add_argument("--source",default="csv");p.add_argument("--db",default="data/candle_lab.duckdb");p.add_argument("--parquet",default="data/parquet/trades.parquet")
     p=sub.add_parser("reconcile");p.add_argument("trades_csv");p.add_argument("reference_csv");p.add_argument("--symbol",default="");p.add_argument("--tick-size",type=float,required=True);p.add_argument("--interval",type=int,required=True);p.add_argument("--trade-source",default="profit_csv");p.add_argument("--reference-source",default="profit_ohlc_reference")
+    p=sub.add_parser("empirical-validate");p.add_argument("trades_csv");p.add_argument("reference_csv");p.add_argument("--symbol",default="");p.add_argument("--tick-size",type=float,required=True);p.add_argument("--interval",type=int,default=60);p.add_argument("--trade-source",default="profit_csv");p.add_argument("--reference-source",default="profit_ohlc_reference")
     p=sub.add_parser("quality");p.add_argument("--symbol",required=True);p.add_argument("--db",default="data/candle_lab.duckdb")
     p=sub.add_parser("research");p.add_argument("--symbol",required=True);p.add_argument("--start",required=True);p.add_argument("--interval",type=int,default=60);p.add_argument("--limit",type=int,default=8);p.add_argument("--same-time",action="store_true");p.add_argument("--time-tolerance",type=int,default=20);p.add_argument("--same-volatility",action="store_true");p.add_argument("--same-regime",action="store_true");p.add_argument("--same-context-regime",action="store_true");p.add_argument("--include-low-quality",action="store_true");p.add_argument("--include-same-session",action="store_true");p.add_argument("--reindex",action="store_true");p.add_argument("--db",default="data/candle_lab.duckdb")
     p=sub.add_parser("trajectory");p.add_argument("--symbol",required=True);p.add_argument("--interval",type=int,default=60);p.add_argument("--clusters",type=int,default=0);p.add_argument("--sample-points",type=int,default=25);p.add_argument("--include-low-quality",action="store_true");p.add_argument("--db",default="data/candle_lab.duckdb")
     p=sub.add_parser("transitions");p.add_argument("--symbol",required=True);p.add_argument("--interval",type=int,default=60);p.add_argument("--clusters",type=int,default=0);p.add_argument("--sample-points",type=int,default=25);p.add_argument("--start",default="");p.add_argument("--include-low-quality",action="store_true");p.add_argument("--db",default="data/candle_lab.duckdb")
     p=sub.add_parser("serve");p.add_argument("--host",default="127.0.0.1");p.add_argument("--port",type=int,default=8765);p.add_argument("--db",default=None)
     args=parser.parse_args()
-    actions={"analyze":_analyze,"import":_import,"reconcile":_reconcile,"quality":_quality,"research":_research,"trajectory":_trajectory,"transitions":_transitions,"serve":_serve}
+    actions={"analyze":_analyze,"import":_import,"reconcile":_reconcile,"empirical-validate":_empirical_validate,"quality":_quality,"research":_research,"trajectory":_trajectory,"transitions":_transitions,"serve":_serve}
     actions.get(args.command,lambda _:parser.print_help())(args)
 
 if __name__=="__main__":main()
