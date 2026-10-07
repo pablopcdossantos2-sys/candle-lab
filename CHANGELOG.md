@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.10.0 — 2026-10-07
+- primeira validação empírica com exportação real do WINV26;
+- 10/10 candles completos reconciliados exatamente em OHLC e quantidade;
+- importador para Trades Profit sem cabeçalho, 8 colunas e ordem cronológica inversa;
+- suporte a datas com ano de dois dígitos;
+- preservação de RLP sem inferência BUY/SELL;
+- preservação de ocorrências textualmente idênticas pela sequência do arquivo;
+- leitura correta do CSV de 1 minuto formatado do Profit;
+- `Quantidade` passa a ser usada como volume em contratos na referência;
+- candles de fronteira incompletos recebem `PARTIAL_SOURCE_WINDOW`;
+- comando `candle-lab empirical-validate`;
+- upload web gravado em blocos de 8 MiB;
+- painel web para importar referência OHLC e exibir reconciliação.
+
+
 ## 0.9.0 — 2026-10-07
 - estabilidade descritiva das famílias intrabar entre pregões e contextos;
 - matrizes de transição de famílias e clusters;
