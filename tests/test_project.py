@@ -1,6 +1,7 @@
 import tempfile
 import unittest
 from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 from pathlib import Path
 
 from candle_lab.candles import build_candles
@@ -12,6 +13,8 @@ from candle_lab.sample import generate_builtin_sample
 from candle_lab.storage import MarketStore
 from candle_lab.trajectory import classify_rule_family, deterministic_kmeans
 from candle_lab.transitions import analyze_stability_and_transitions
+from candle_lab.bulk import bulk_import_profit_file, aggregate_candles_sql, reconcile_store_references, export_session_parquet
+from candle_lab.reconciliation import ReferenceCandle
 
 UTC = timezone.utc
 
@@ -167,6 +170,77 @@ class ProfitExportTests(unittest.TestCase):
         self.assertEqual(report["summary"]["exact"], 1)
         self.assertEqual(report["observed_window"]["partial_boundary_candles"], 1)
         self.assertEqual(report["partial_boundary_references"][0]["status"], "PARTIAL_SOURCE_WINDOW")
+
+
+class BulkImportTests(unittest.TestCase):
+    def test_chunked_profit_import_reconcile_and_skip_same_file(self):
+        content = (
+            "WINTEST,07/10/26,10:01:59,3 - Comprador,1010,2,85 - Vendedor,Comprador\n"
+            "WINTEST,07/10/26,10:01:30,3 - Comprador,1000,1,85 - Vendedor,RLP\n"
+            "WINTEST,07/10/26,10:01:00,3 - Comprador,1005,3,85 - Vendedor,Vendedor\n"
+            "WINTEST,07/10/26,10:00:59,3 - Comprador,1000,1,85 - Vendedor,Comprador\n"
+            "WINTEST,07/10/26,10:00:30,3 - Comprador,995,2,85 - Vendedor,Vendedor\n"
+            "WINTEST,07/10/26,10:00:00,3 - Comprador,990,3,85 - Vendedor,Vendedor\n"
+        )
+        tz = ZoneInfo("America/Sao_Paulo")
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            csv_path = root / "WINTEST_TRADES.csv"
+            csv_path.write_text(content, encoding="cp1252")
+            store = MarketStore(root / "lab.duckdb")
+
+            progress = []
+            result = bulk_import_profit_file(
+                csv_path, store=store, tick_size=5.0, chunk_rows=1000,
+                progress=lambda info: progress.append(info),
+            )
+            self.assertEqual(result.status, "COMPLETED")
+            self.assertEqual(result.processed_rows, 6)
+            self.assertEqual(result.inserted_rows, 6)
+            self.assertFalse(result.already_imported)
+            self.assertEqual(result.source_order, "DESCENDING")
+            self.assertEqual(result.rlp_rows, 1)
+            self.assertTrue(any(x.get("phase") == "import" for x in progress))
+
+            candles = aggregate_candles_sql(
+                store, symbol="WINTEST", session_date="2026-10-07", interval_seconds=60
+            )
+            self.assertEqual(len(candles), 2)
+            self.assertEqual(
+                (candles[0]["open_ticks"], candles[0]["high_ticks"], candles[0]["low_ticks"], candles[0]["close_ticks"]),
+                (198, 200, 198, 200),
+            )
+            self.assertEqual(candles[0]["volume"], 6)
+
+            refs = [
+                ReferenceCandle(
+                    "WINTEST", datetime(2026,10,7,10,0,tzinfo=tz), 60,
+                    198, 200, 198, 200, volume=6,
+                ),
+                ReferenceCandle(
+                    "WINTEST", datetime(2026,10,7,10,1,tzinfo=tz), 60,
+                    201, 202, 200, 202, volume=6,
+                ),
+            ]
+            reconciliation = reconcile_store_references(
+                store, symbol="WINTEST", session_date="2026-10-07",
+                references=refs, interval_seconds=60, tick_size=5.0,
+            )
+            self.assertEqual(reconciliation["summary"]["exact"], 2)
+            self.assertEqual(reconciliation["summary"]["mismatch"], 0)
+            self.assertEqual(reconciliation["summary"]["exact_rate"], 1.0)
+
+            second = bulk_import_profit_file(
+                csv_path, store=store, tick_size=5.0, chunk_rows=1000
+            )
+            self.assertTrue(second.already_imported)
+            self.assertEqual(len(store.load_trades("WINTEST")), 6)
+
+            parquet = export_session_parquet(
+                store, symbol="WINTEST", session_date="2026-10-07", output_dir=root / "parquet"
+            )
+            self.assertTrue(parquet.exists())
+            self.assertGreater(parquet.stat().st_size, 0)
 
 
 class StorageTests(unittest.TestCase):
