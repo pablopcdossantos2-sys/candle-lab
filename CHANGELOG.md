@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.11.0 — 2026-10-07
+- ingestão massiva de Trades em chunks configuráveis;
+- SHA-256 do arquivo antes da importação;
+- importação retomável após interrupção;
+- commits por bloco no DuckDB;
+- rastreamento por hash da fonte e número da linha;
+- proteção contra reimportar exatamente o mesmo arquivo;
+- preservação de linhas idênticas da exportação Profit;
+- reconstrução OHLC diretamente em SQL, sem carregar o pregão inteiro em objetos Python;
+- reconciliação do pregão completo com referência de 1 minuto;
+- exportação Parquet por contrato/pregão;
+- relatórios HTML e JSON;
+- comandos `bulk-import` e `bulk-validate`;
+- iniciador `validar-pregao-completo.bat` e tutorial passo a passo para Windows.
+
+
 ## 0.10.0 — 2026-10-07
 - primeira validação empírica com exportação real do WINV26;
 - 10/10 candles completos reconciliados exatamente em OHLC e quantidade;
