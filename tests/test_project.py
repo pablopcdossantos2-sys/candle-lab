@@ -6,6 +6,8 @@ from pathlib import Path
 from candle_lab.candles import build_candles
 from candle_lab.counterfactual import generate_ohlc_path
 from candle_lab.models import Trade
+from candle_lab.importers import import_csv_with_report
+from candle_lab.reconciliation import import_reference_candles, reconcile_observed_window
 from candle_lab.sample import generate_builtin_sample
 from candle_lab.storage import MarketStore
 from candle_lab.trajectory import classify_rule_family, deterministic_kmeans
@@ -104,6 +106,67 @@ class TransitionTests(unittest.TestCase):
             trades += trades_from_prices(start + timedelta(minutes=i), pattern)
         result = analyze_stability_and_transitions(trades, interval_seconds=60, quality_only=False, clusters=2)
         self.assertEqual(sum(x["count"] for x in result["family_motifs"]), 1)
+
+
+class ProfitExportTests(unittest.TestCase):
+    def test_headerless_profit_reverse_order_preserves_identical_trades(self):
+        content = (
+            "WINTEST,07/10/26,10:01:00,3 - Comprador,1005,1,85 - Vendedor,Comprador\n"
+            "WINTEST,07/10/26,10:00:59,3 - Comprador,1000,1,85 - Vendedor,RLP\n"
+            "WINTEST,07/10/26,10:00:00,3 - Comprador,995,2,85 - Vendedor,Vendedor\n"
+            "WINTEST,07/10/26,10:00:00,3 - Comprador,995,2,85 - Vendedor,Vendedor\n"
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "profit_trades.csv"
+            path.write_text(content, encoding="ascii")
+            trades, report = import_csv_with_report(path, symbol=None, tick_size=5.0, source="profit_csv")
+        self.assertEqual(report.profile, "Nelogica / Profit — Trades sem cabeçalho (8 colunas)")
+        self.assertEqual(report.source_order, "DESCENDING")
+        self.assertEqual(report.timestamp_precision, "1 segundo")
+        self.assertEqual(len(trades), 4)
+        self.assertEqual([t.price_ticks for t in trades], [199, 199, 200, 201])
+        self.assertEqual([t.sequence_no for t in trades], [1, 2, 3, 4])
+        self.assertEqual(sum(t.quantity for t in trades), 6)
+        self.assertIn("raw_aggressor=RLP", trades[2].flags or "")
+
+    def test_formatted_profit_reference_uses_quantidade_not_financial_volume(self):
+        content = (
+            "Ativo;Data;Hora;Abertura;Máximo;Mínimo;Fechamento;Volume;Quantidade\n"
+            "WINTEST;07/10/2026;10:00:00;204.660;204.705;204.500;204.500;1.058.515.234,00;25.878\n"
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "profit_1min.csv"
+            path.write_text(content, encoding="cp1252")
+            refs, report = import_reference_candles(
+                path, symbol=None, tick_size=5.0, interval_seconds=60, source="profit_ohlc_reference"
+            )
+        self.assertEqual(report.profile, "Nelogica / Profit — candles formatados")
+        self.assertEqual(len(refs), 1)
+        ref = refs[0]
+        self.assertEqual(ref.open_ticks, 40932)
+        self.assertEqual(ref.high_ticks, 40941)
+        self.assertEqual(ref.low_ticks, 40900)
+        self.assertEqual(ref.close_ticks, 40900)
+        self.assertEqual(ref.volume, 25878)
+        self.assertIsNone(ref.trades)
+
+    def test_observed_window_excludes_partial_last_candle(self):
+        start = datetime(2026, 10, 7, 10, 0, tzinfo=UTC)
+        trades = [
+            Trade("WINTEST", start, 200, 2, sequence_no=1),
+            Trade("WINTEST", start + timedelta(seconds=59), 201, 3, sequence_no=2),
+            Trade("WINTEST", start + timedelta(minutes=1), 201, 1, sequence_no=3),
+        ]
+        from candle_lab.reconciliation import ReferenceCandle
+        refs = [
+            ReferenceCandle("WINTEST", start, 60, 200, 201, 200, 201, volume=5),
+            ReferenceCandle("WINTEST", start + timedelta(minutes=1), 60, 201, 205, 199, 202, volume=50),
+        ]
+        report = reconcile_observed_window(trades, refs, interval_seconds=60, tick_size=5.0)
+        self.assertEqual(report["summary"]["reference_candles"], 1)
+        self.assertEqual(report["summary"]["exact"], 1)
+        self.assertEqual(report["observed_window"]["partial_boundary_candles"], 1)
+        self.assertEqual(report["partial_boundary_references"][0]["status"], "PARTIAL_SOURCE_WINDOW")
 
 
 class StorageTests(unittest.TestCase):
