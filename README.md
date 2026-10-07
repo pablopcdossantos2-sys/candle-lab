@@ -2,7 +2,7 @@
 
 **Laboratório local para investigar como candles de futuros da B3 são formados negócio a negócio.**
 
-Versão atual: **0.10.0**
+Versão atual: **0.11.0**
 
 O Candle Lab B3 nasceu de uma pergunta simples: **dois candles visualmente parecidos necessariamente foram formados da mesma maneira?**
 
@@ -180,7 +180,31 @@ A versão também reconhece que, no CSV formatado de 1 minuto do Profit, `Volume
 
 Veja `docs/VALIDACAO-EMPIRICA-V010.md`.
 
-### 12. Caminhos contrafactuais
+### 12. Ingestão massiva e validação de pregão completo — v0.11
+
+A v0.11 permite processar arquivos de Trades com centenas de MB sem carregar todos os negócios simultaneamente em memória.
+
+A ingestão:
+
+- calcula SHA-256 do arquivo;
+- detecta a ordem invertida do Profit;
+- lê o CSV em blocos;
+- confirma cada bloco em uma transação DuckDB;
+- registra o número da linha e o hash da fonte;
+- preserva linhas textualmente idênticas;
+- permite retomar uma importação interrompida;
+- impede a segunda importação do mesmo arquivo;
+- reconstrói candles diretamente em SQL;
+- exporta Parquet por contrato/pregão;
+- gera relatório HTML e JSON da reconciliação.
+
+Para usuários comuns, basta dar dois cliques em:
+
+`validar-pregao-completo.bat`
+
+Veja `docs/TUTORIAL-VALIDACAO-PREGAO-COMPLETO.md`.
+
+### 13. Caminhos contrafactuais
 
 O programa também pode criar uma trajetória diferente que preserve o mesmo OHLC.
 
@@ -358,6 +382,16 @@ candle-lab import sample_data\nelogica_tick_exemplo.csv --tick-size 5 --source p
 candle-lab reconcile sample_data\nelogica_tick_exemplo.csv sample_data\reference_exemplo_1m.csv --symbol WINEXEMPLO --tick-size 5 --interval 60
 ```
 
+### Validação de um pregão completo com arquivo grande
+
+A v0.11 possui um comando que importa em chunks e retoma automaticamente em caso de interrupção:
+
+```powershell
+candle-lab bulk-validate WINV26_TRADES.csv WINV26_1MIN.csv --symbol WINV26 --tick-size 5 --interval 60
+```
+
+Para quem não usa terminal, execute `validar-pregao-completo.bat`.
+
 ### Validação empírica de um recorte real
 
 Esse comando ignora candles de fronteira que não estejam totalmente cobertos pelo arquivo de Trades:
@@ -454,7 +488,8 @@ Para aprofundar o projeto:
 - `docs/TRAJECTORY-FAMILIES.md` — famílias e clustering;
 - `docs/ESTABILIDADE-TRANSICOES.md` — estabilidade e sequências v0.9;
 - `docs/VALIDACAO-V08.md` — validação funcional da camada de trajetórias;
-- `docs/VALIDACAO-EMPIRICA-V010.md` — primeira validação com dados reais do WINV26.
+- `docs/VALIDACAO-EMPIRICA-V010.md` — primeira validação com dados reais do WINV26;
+- `docs/TUTORIAL-VALIDACAO-PREGAO-COMPLETO.md` — passo a passo para processar CSVs grandes no Windows.
 
 ---
 
@@ -468,7 +503,8 @@ O projeto ainda está em desenvolvimento. Entre as limitações conhecidas:
 - clusters dependem do dataset e da versão do modelo;
 - frequências de transição descrevem a biblioteca atual e não devem ser interpretadas como previsão;
 - dados sintéticos demonstram funcionamento do pipeline, não validam comportamento real do WIN/WDO;
-- a v0.10 já foi validada em um recorte real de 10 minutos do WINV26, mas o processamento integral de um CSV de centenas de MB ainda precisa de ingestão em chunks para reduzir o uso de memória.
+- a v0.10 foi validada em um recorte real de 10 minutos do WINV26;
+- a v0.11 introduz ingestão em chunks para o arquivo completo; análises avançadas de famílias sobre milhões de trades ainda serão gradualmente migradas para execução SQL/streaming.
 
 ---
 
