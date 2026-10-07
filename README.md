@@ -230,14 +230,14 @@ Nas execuções seguintes, basta usar `iniciar.bat` novamente. O ambiente já cr
 
 Na tela inicial, clique em **Carregar amostra**.
 
-A demonstração usa o símbolo reservado `WINLAB06` e contém:
+A demonstração é gerada deterministicamente pelo próprio programa, usa o símbolo reservado `WINLAB06` e contém:
 
 - 2.880 negócios sintéticos;
 - 72 candles de 1 minuto;
 - 6 pregões artificiais;
 - diferentes trajetórias, regimes e níveis de volatilidade.
 
-Esses registros **não são dados reais de mercado**. Eles existem para testar todas as funcionalidades com segurança.
+Esses registros **não são dados reais de mercado**. Eles existem para testar todas as funcionalidades com segurança e não exigem que um CSV sintético grande seja armazenado no repositório.
 
 Depois de carregar a amostra:
 
