@@ -30,6 +30,11 @@ class MarketStore:
                 event_key VARCHAR PRIMARY KEY, symbol VARCHAR, ts TIMESTAMPTZ, session_date DATE,
                 price_ticks BIGINT, quantity BIGINT, trade_id VARCHAR, aggressor VARCHAR, source VARCHAR,
                 buyer_id VARCHAR, seller_id VARCHAR, sequence_no BIGINT, flags VARCHAR)""")
+            trade_columns={row[1] for row in con.execute("PRAGMA table_info('trades')").fetchall()}
+            if "source_file_hash" not in trade_columns:
+                con.execute("ALTER TABLE trades ADD COLUMN source_file_hash VARCHAR")
+            if "source_row" not in trade_columns:
+                con.execute("ALTER TABLE trades ADD COLUMN source_row BIGINT")
             con.execute("""CREATE TABLE IF NOT EXISTS reference_candles(
                 reference_key VARCHAR PRIMARY KEY, symbol VARCHAR, start TIMESTAMPTZ, session_date DATE,
                 interval_seconds INTEGER, open_ticks BIGINT, high_ticks BIGINT, low_ticks BIGINT, close_ticks BIGINT,
@@ -45,6 +50,13 @@ class MarketStore:
                 feature_key VARCHAR PRIMARY KEY, symbol VARCHAR, start TIMESTAMPTZ, session_date DATE,
                 interval_seconds INTEGER, index_version VARCHAR, payload_json VARCHAR,
                 updated_at TIMESTAMP DEFAULT current_timestamp)""")
+            con.execute("""CREATE TABLE IF NOT EXISTS bulk_imports(
+                file_hash VARCHAR PRIMARY KEY, file_name VARCHAR, file_path VARCHAR, file_size BIGINT,
+                source VARCHAR, symbol VARCHAR, tick_size DOUBLE, source_order VARCHAR, status VARCHAR,
+                processed_rows BIGINT, inserted_rows BIGINT, byte_offset BIGINT,
+                first_ts VARCHAR, last_ts VARCHAR, elapsed_seconds DOUBLE,
+                diagnostics_json VARCHAR, started_at TIMESTAMP DEFAULT current_timestamp,
+                updated_at TIMESTAMP DEFAULT current_timestamp, completed_at TIMESTAMP)""")
 
     @staticmethod
     def _event_key(trade:Trade,sequence_no:int|None=None)->str:
@@ -83,7 +95,10 @@ class MarketStore:
                 key=self._event_key(t)
                 exists=con.execute("SELECT 1 FROM trades WHERE event_key=?",[key]).fetchone()
                 if exists:continue
-                con.execute("""INSERT INTO trades VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",[
+                con.execute("""INSERT INTO trades(
+                    event_key,symbol,ts,session_date,price_ticks,quantity,trade_id,aggressor,source,
+                    buyer_id,seller_id,sequence_no,flags
+                ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",[
                     key,t.symbol,t.ts,t.ts.date(),t.price_ticks,t.quantity,t.trade_id,t.aggressor.value,t.source,
                     t.buyer_id,t.seller_id,t.sequence_no,t.flags])
                 inserted+=1
