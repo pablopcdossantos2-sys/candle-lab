@@ -34,3 +34,28 @@ Importações são registradas como lotes com fonte, arquivo, cobertura temporal
 ## Índices derivados
 
 Pesquisa, qualidade, famílias e transições são derivados/versionados. Eles podem ser reconstruídos sem alterar os negócios originais.
+
+
+## Proveniência de arquivos grandes — v0.11
+
+A tabela `trades` ganhou campos opcionais:
+
+- `source_file_hash`: SHA-256 do CSV de origem;
+- `source_row`: posição da ocorrência no arquivo.
+
+Eles são especialmente importantes porque o layout real de Trades do Profit observado não contém Número do Negócio e pode possuir várias linhas textualmente idênticas.
+
+A tabela `bulk_imports` registra:
+
+- hash e tamanho do arquivo;
+- caminho e nome;
+- contrato e tick size;
+- ordem detectada da fonte;
+- status `PENDING/RUNNING/FAILED/COMPLETED`;
+- linhas processadas/inseridas;
+- byte offset confirmado;
+- primeiro/último timestamp;
+- tempo acumulado;
+- diagnósticos.
+
+O checkpoint só avança depois do commit do bloco correspondente. Isso torna a retomada idempotente para o mesmo arquivo.
