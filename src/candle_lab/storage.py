@@ -151,6 +151,25 @@ class MarketStore:
                 FROM trades WHERE symbol=? GROUP BY session_date ORDER BY session_date""",[symbol]).fetchall()
         return [{"session_date":str(r[0]),"trades":r[1],"first_ts":r[2],"last_ts":r[3],"volume":r[4]} for r in rows]
 
+    def list_reference_sessions(self,symbol:str)->list[dict[str,object]]:
+        with self.connect() as con:
+            rows=con.execute("""SELECT session_date,interval_seconds,count(*),min(start),max(start),min(source)
+                FROM reference_candles WHERE symbol=?
+                GROUP BY session_date,interval_seconds
+                ORDER BY session_date,interval_seconds""",[symbol]).fetchall()
+        return [{"session_date":str(r[0]),"interval_seconds":int(r[1]),"candles":int(r[2]),
+                 "first_start":r[3],"last_start":r[4],"source":r[5]} for r in rows]
+
+    def reference_overview(self)->list[dict[str,object]]:
+        with self.connect() as con:
+            rows=con.execute("""SELECT r.symbol,i.tick_size,r.session_date,r.interval_seconds,count(*),min(r.start),max(r.start)
+                FROM reference_candles r
+                JOIN instruments i ON i.symbol=r.symbol
+                GROUP BY r.symbol,i.tick_size,r.session_date,r.interval_seconds
+                ORDER BY r.symbol,r.session_date,r.interval_seconds""").fetchall()
+        return [{"symbol":r[0],"tick_size":float(r[1]),"session_date":str(r[2]),"interval_seconds":int(r[3]),
+                 "candles":int(r[4]),"first_start":r[5],"last_start":r[6]} for r in rows]
+
     def library_overview(self)->list[dict[str,object]]:
         result=[]
         for item in self.list_symbols():
