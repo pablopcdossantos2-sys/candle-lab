@@ -6,3 +6,6 @@ data/*.duckdb
 data/*.wal
 data/parquet/*.parquet
 .DS_Store
+data/parquet/**/*.parquet
+data/reports/*.html
+data/reports/*.json
