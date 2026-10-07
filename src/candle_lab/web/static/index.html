@@ -30,6 +30,19 @@
 </section>
 
 <section class="card">
+  <h2>Importar referência OHLC</h2>
+  <p>Use aqui o CSV de 1 minuto exportado separadamente do Profit. Ele será usado para auditar os candles reconstruídos a partir dos Trades.</p>
+  <form id="referenceForm" class="grid-form">
+    <label>CSV de referência<input id="referenceFile" type="file" accept=".csv" required></label>
+    <label>Contrato<input id="referenceSymbolInput" placeholder="WINV26"></label>
+    <label>Tick<input id="referenceTickInput" type="number" step="0.01" value="5" required></label>
+    <label>Intervalo (s)<input id="referenceIntervalInput" type="number" value="60" min="1" required></label>
+    <button class="primary" type="submit">Importar referência</button>
+  </form>
+  <pre id="referenceResult" class="console">Nenhuma referência importada nesta sessão.</pre>
+</section>
+
+<section class="card">
   <div class="section-head"><div><h2>Biblioteca</h2><p>Selecione ativo, pregão e timeframe.</p></div><button id="refreshBtn">Atualizar</button></div>
   <div class="controls">
     <label>Ativo<select id="symbolSelect"></select></label>
@@ -37,6 +50,7 @@
     <label>Timeframe<select id="intervalSelect"><option value="1">1 s</option><option value="5">5 s</option><option value="15">15 s</option><option selected value="60">1 min</option><option value="300">5 min</option></select></label>
   </div>
   <div id="qualityBox" class="notice">Selecione um pregão.</div>
+  <div id="validationBox" class="notice">Importe uma referência OHLC para validar a reconstrução.</div>
   <div class="table-wrap"><table><thead><tr><th>Início</th><th>O</th><th>H</th><th>L</th><th>C</th><th>Volume</th><th>Negócios</th></tr></thead><tbody id="candleBody"></tbody></table></div>
 </section>
 
