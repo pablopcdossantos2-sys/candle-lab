@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Candle Lab B3</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+<header class="topbar">
+  <div><div class="eyebrow">MICROESTRUTURA · WIN/WDO</div><h1>Candle Lab B3</h1><p>Abra um candle e investigue como os negócios o formaram.</p></div>
+  <div id="statusBadge" class="badge">carregando…</div>
+</header>
+<main>
+<section class="card intro">
+  <div><h2>Comece por aqui</h2><p>Use a amostra interna para conhecer o laboratório ou importe seu próprio CSV Tick by Tick.</p></div>
+  <button id="sampleBtn" class="primary">Carregar amostra</button>
+</section>
+
+<section class="card">
+  <h2>Importar negócios</h2>
+  <form id="importForm" class="grid-form">
+    <label>CSV<input id="tradeFile" type="file" accept=".csv" required></label>
+    <label>Contrato<input id="symbolInput" placeholder="WINV26 (opcional se houver Ativo no CSV)"></label>
+    <label>Tick<input id="tickInput" type="number" step="0.01" value="5" required></label>
+    <label>Fonte<input id="sourceInput" value="profit_csv"></label>
+    <button class="primary" type="submit">Importar</button>
+  </form>
+  <pre id="importResult" class="console">Nenhuma importação nesta sessão.</pre>
+</section>
+
+<section class="card">
+  <div class="section-head"><div><h2>Biblioteca</h2><p>Selecione ativo, pregão e timeframe.</p></div><button id="refreshBtn">Atualizar</button></div>
+  <div class="controls">
+    <label>Ativo<select id="symbolSelect"></select></label>
+    <label>Pregão<select id="sessionSelect"></select></label>
+    <label>Timeframe<select id="intervalSelect"><option value="1">1 s</option><option value="5">5 s</option><option value="15">15 s</option><option selected value="60">1 min</option><option value="300">5 min</option></select></label>
+  </div>
+  <div id="qualityBox" class="notice">Selecione um pregão.</div>
+  <div class="table-wrap"><table><thead><tr><th>Início</th><th>O</th><th>H</th><th>L</th><th>C</th><th>Volume</th><th>Negócios</th></tr></thead><tbody id="candleBody"></tbody></table></div>
+</section>
+
+<section id="labCard" class="card hidden">
+  <div class="section-head"><div><h2>Laboratório do candle</h2><p id="selectedTitle"></p></div><span class="badge real">REPLAY REAL</span></div>
+  <div class="kpis" id="dnaKpis"></div>
+  <div class="two-col">
+    <div><h3>Trajetória intrabar</h3><canvas id="pathCanvas" width="700" height="260"></canvas></div>
+    <div><h3>Volume por preço</h3><div id="volumeLevels" class="levels"></div></div>
+  </div>
+  <div class="replay-bar"><button id="playBtn" class="primary">▶ Reproduzir</button><button id="stepBtn">Avançar 1 negócio</button><button id="resetBtn">Reiniciar</button><span id="replayState"></span></div>
+  <div class="table-wrap trades"><table><thead><tr><th>#</th><th>Hora</th><th>Preço</th><th>Qtd.</th><th>Agressor</th><th>Comprador</th><th>Vendedor</th></tr></thead><tbody id="tradeBody"></tbody></table></div>
+  <div class="counter"><h3>Caminho alternativo</h3><span class="badge simulation">SIMULAÇÃO CONTRAFACTUAL</span><canvas id="counterCanvas" width="700" height="180"></canvas></div>
+</section>
+
+<section id="researchCard" class="card hidden">
+  <h2>Pesquisa comparativa</h2>
+  <div class="checks"><label><input id="sameTime" type="checkbox"> mesmo horário</label><label><input id="sameVol" type="checkbox"> mesma volatilidade</label><label><input id="sameContext" type="checkbox"> mesmo contexto</label><label><input id="otherSessions" type="checkbox" checked> outros pregões</label></div>
+  <button id="researchBtn" class="primary">Pesquisar biblioteca</button>
+  <div class="two-col"><div><h3>Semelhança visual</h3><div id="visualMatches"></div></div><div><h3>Semelhança pelo DNA</h3><div id="dnaMatches"></div></div></div>
+</section>
+
+<section id="trajectoryCard" class="card hidden">
+  <div class="section-head"><div><h2>Famílias de trajetória</h2><p>Taxonomia explicável + clustering empírico.</p></div><span class="badge">v0.8</span></div>
+  <div class="controls"><label>Clusters<select id="clusterSelect"><option value="0">Automático</option><option>3</option><option>4</option><option>5</option><option>6</option><option>8</option></select></label><label>Pontos<select id="pointsSelect"><option>17</option><option selected>25</option><option>33</option><option>49</option></select></label><button id="trajectoryBtn" class="primary">Descobrir famílias</button></div>
+  <div class="two-col"><div><h3>Famílias interpretáveis</h3><div id="ruleFamilies"></div></div><div><h3>Clusters empíricos</h3><div id="clusters"></div></div></div>
+</section>
+
+<section id="transitionCard" class="card hidden">
+  <div class="section-head"><div><h2>Estabilidade e transições</h2><p>Observe distribuição das famílias e sequências entre candles consecutivos.</p></div><span class="badge">v0.9</span></div>
+  <button id="transitionBtn" class="primary">Analisar estabilidade e transições</button>
+  <div id="sequenceBox" class="sequence"></div>
+  <div class="two-col"><div><h3>Estabilidade</h3><div id="stability"></div></div><div><h3>Transições mais frequentes</h3><div id="transitions"></div><h3>Sequências de 3 candles</h3><div id="motifs"></div></div></div>
+  <div class="warning">Frequências observadas são descritivas da biblioteca carregada. Não são probabilidade futura nem sinal de trading.</div>
+</section>
+</main>
+<script src="/static/app.js"></script>
+</body>
+</html>
