@@ -8,49 +8,80 @@
 </head>
 <body>
 <header class="topbar">
-  <div><div class="eyebrow">MICROESTRUTURA · WIN/WDO</div><h1>Candle Lab B3</h1><p>Abra um candle e investigue como os negócios o formaram.</p></div>
+  <div><div class="eyebrow">MICROESTRUTURA · WIN/WDO</div><h1>Candle Lab B3</h1><p>Veja o pregão inteiro, selecione um trecho e abra a microestrutura só onde interessa.</p></div>
   <div id="statusBadge" class="badge">carregando…</div>
 </header>
 <main>
 <section class="card intro">
-  <div><h2>Comece por aqui</h2><p>Use a amostra interna para conhecer o laboratório ou importe seu próprio CSV Tick by Tick.</p></div>
+  <div><h2>Fluxo recomendado</h2><p>1) importe candles de 1 ou 2 minutos; 2) selecione visualmente um intervalo; 3) indique onde está o CSV grande de Trades; 4) o Candle Lab cria e importa apenas o recorte escolhido.</p></div>
   <button id="sampleBtn" class="primary">Carregar amostra</button>
 </section>
 
 <section class="card">
-  <h2>Importar negócios</h2><p><strong>Arquivo muito grande?</strong> Para CSVs com centenas de MB, use <code>validar-pregao-completo.bat</code> na pasta do projeto. A rotina v0.11 processa em blocos e pode retomar após interrupção.</p>
-  <form id="importForm" class="grid-form">
-    <label>CSV<input id="tradeFile" type="file" accept=".csv" required></label>
-    <label>Contrato<input id="symbolInput" placeholder="WINV26 (opcional se houver Ativo no CSV)"></label>
-    <label>Tick<input id="tickInput" type="number" step="0.01" value="5" required></label>
-    <label>Fonte<input id="sourceInput" value="profit_csv"></label>
-    <button class="primary" type="submit">Importar</button>
-  </form>
-  <pre id="importResult" class="console">Nenhuma importação nesta sessão.</pre>
-</section>
-
-<section class="card">
-  <h2>Importar referência OHLC</h2>
-  <p>Use aqui o CSV de 1 minuto exportado separadamente do Profit. Ele será usado para auditar os candles reconstruídos a partir dos Trades.</p>
+  <div class="step-title"><span>1</span><div><h2>Importar gráfico diário</h2><p>Use o CSV leve de candles exportado pelo Profit. Ele será a visão geral do dia e também a referência OHLC.</p></div></div>
   <form id="referenceForm" class="grid-form">
-    <label>CSV de referência<input id="referenceFile" type="file" accept=".csv" required></label>
+    <label>CSV de 1 ou 2 minutos<input id="referenceFile" type="file" accept=".csv" required></label>
     <label>Contrato<input id="referenceSymbolInput" placeholder="WINV26"></label>
     <label>Tick<input id="referenceTickInput" type="number" step="0.01" value="5" required></label>
-    <label>Intervalo (s)<input id="referenceIntervalInput" type="number" value="60" min="1" required></label>
-    <button class="primary" type="submit">Importar referência</button>
+    <label>Intervalo (s)<select id="referenceIntervalInput"><option value="60">1 minuto</option><option value="120">2 minutos</option><option value="300">5 minutos</option></select></label>
+    <button class="primary" type="submit">Importar gráfico</button>
   </form>
-  <pre id="referenceResult" class="console">Nenhuma referência importada nesta sessão.</pre>
+  <pre id="referenceResult" class="console compact">Nenhum gráfico diário importado nesta sessão.</pre>
+</section>
+
+<section class="card" id="overviewCard">
+  <div class="step-title"><span>2</span><div><h2>Visão geral do pregão</h2><p>Arraste o mouse sobre o gráfico para selecionar os candles que deseja investigar em profundidade.</p></div></div>
+  <div class="controls">
+    <label>Ativo<select id="overviewSymbolSelect"></select></label>
+    <label>Pregão / timeframe<select id="overviewSessionSelect"></select></label>
+    <button id="overviewRefreshBtn">Atualizar gráfico</button>
+  </div>
+  <div class="day-chart-wrap">
+    <canvas id="dayCanvas" width="1200" height="460"></canvas>
+  </div>
+  <div id="overviewEmpty" class="notice">Importe primeiro um CSV de candles de 1 ou 2 minutos.</div>
+  <div id="selectionInfo" class="selection-info hidden">
+    <div><small>Intervalo selecionado</small><strong id="selectionLabel">—</strong></div>
+    <div><small>Candles</small><strong id="selectionCount">0</strong></div>
+    <button id="clearSelectionBtn">Limpar seleção</button>
+  </div>
 </section>
 
 <section class="card">
-  <div class="section-head"><div><h2>Biblioteca</h2><p>Selecione ativo, pregão e timeframe.</p></div><button id="refreshBtn">Atualizar</button></div>
+  <div class="step-title"><span>3</span><div><h2>Gerar e importar o recorte Tick by Tick</h2><p>O CSV grande permanece onde está. O Candle Lab apenas o percorre em streaming e grava um arquivo pequeno contendo o intervalo selecionado.</p></div></div>
+  <div class="local-path">
+    <label>Caminho do CSV grande de Trades
+      <input id="localTradesPath" type="text" placeholder='Ex.: C:\Dados\WINV26_2026-10-07_TRADES.csv'>
+    </label>
+    <label>Tick<input id="sliceTickInput" type="number" step="0.01" value="5"></label>
+    <button id="sliceBtn" class="primary" disabled>Recortar e importar intervalo</button>
+  </div>
+  <div class="notice">No Windows, use <strong>Copiar como caminho</strong> no arquivo original e cole acima. O arquivo de centenas de MB não é copiado para a biblioteca; apenas o trecho selecionado é salvo em <code>data\slices</code>.</div>
+  <pre id="sliceResult" class="console compact">Selecione primeiro um intervalo no gráfico.</pre>
+</section>
+
+<section class="card secondary">
+  <h2>Importação direta de Trades — opcional</h2>
+  <p>Use esta área apenas para recortes pequenos já existentes. Para o CSV completo, prefira o fluxo seletivo acima.</p>
+  <form id="importForm" class="grid-form">
+    <label>CSV<input id="tradeFile" type="file" accept=".csv" required></label>
+    <label>Contrato<input id="symbolInput" placeholder="WINV26"></label>
+    <label>Tick<input id="tickInput" type="number" step="0.01" value="5" required></label>
+    <label>Fonte<input id="sourceInput" value="profit_csv"></label>
+    <button class="primary" type="submit">Importar recorte</button>
+  </form>
+  <pre id="importResult" class="console compact">Nenhuma importação direta nesta sessão.</pre>
+</section>
+
+<section class="card">
+  <div class="section-head"><div><h2>Biblioteca de microestrutura</h2><p>Depois de gerar um recorte, selecione um candle para abrir o replay e o DNA intrabar.</p></div><button id="refreshBtn">Atualizar</button></div>
   <div class="controls">
     <label>Ativo<select id="symbolSelect"></select></label>
     <label>Pregão<select id="sessionSelect"></select></label>
-    <label>Timeframe<select id="intervalSelect"><option value="1">1 s</option><option value="5">5 s</option><option value="15">15 s</option><option selected value="60">1 min</option><option value="300">5 min</option></select></label>
+    <label>Timeframe<select id="intervalSelect"><option value="1">1 s</option><option value="5">5 s</option><option value="15">15 s</option><option selected value="60">1 min</option><option value="120">2 min</option><option value="300">5 min</option></select></label>
   </div>
-  <div id="qualityBox" class="notice">Selecione um pregão.</div>
-  <div id="validationBox" class="notice">Importe uma referência OHLC para validar a reconstrução.</div>
+  <div id="qualityBox" class="notice">Nenhum recorte Tick selecionado.</div>
+  <div id="validationBox" class="notice">A referência OHLC é usada para validar a reconstrução do recorte.</div>
   <div class="table-wrap"><table><thead><tr><th>Início</th><th>O</th><th>H</th><th>L</th><th>C</th><th>Volume</th><th>Negócios</th></tr></thead><tbody id="candleBody"></tbody></table></div>
 </section>
 
@@ -74,13 +105,13 @@
 </section>
 
 <section id="trajectoryCard" class="card hidden">
-  <div class="section-head"><div><h2>Famílias de trajetória</h2><p>Taxonomia explicável + clustering empírico.</p></div><span class="badge">v0.8</span></div>
+  <div class="section-head"><div><h2>Famílias de trajetória</h2><p>Taxonomia explicável + clustering empírico.</p></div><span class="badge">v0.8+</span></div>
   <div class="controls"><label>Clusters<select id="clusterSelect"><option value="0">Automático</option><option>3</option><option>4</option><option>5</option><option>6</option><option>8</option></select></label><label>Pontos<select id="pointsSelect"><option>17</option><option selected>25</option><option>33</option><option>49</option></select></label><button id="trajectoryBtn" class="primary">Descobrir famílias</button></div>
   <div class="two-col"><div><h3>Famílias interpretáveis</h3><div id="ruleFamilies"></div></div><div><h3>Clusters empíricos</h3><div id="clusters"></div></div></div>
 </section>
 
 <section id="transitionCard" class="card hidden">
-  <div class="section-head"><div><h2>Estabilidade e transições</h2><p>Observe distribuição das famílias e sequências entre candles consecutivos.</p></div><span class="badge">v0.9</span></div>
+  <div class="section-head"><div><h2>Estabilidade e transições</h2><p>Observe distribuição das famílias e sequências entre candles consecutivos.</p></div><span class="badge">v0.9+</span></div>
   <button id="transitionBtn" class="primary">Analisar estabilidade e transições</button>
   <div id="sequenceBox" class="sequence"></div>
   <div class="two-col"><div><h3>Estabilidade</h3><div id="stability"></div></div><div><h3>Transições mais frequentes</h3><div id="transitions"></div><h3>Sequências de 3 candles</h3><div id="motifs"></div></div></div>
