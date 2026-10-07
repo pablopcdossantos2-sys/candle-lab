@@ -437,12 +437,44 @@ def bulk_import_profit_file(
             )
         except Exception as exc:
             elapsed = previous_elapsed + (time.perf_counter() - started)
+            failure_diagnostics = {
+                "error": str(exc),
+                "encoding": encoding,
+                "source_order": source_order,
+                "known_aggressor_rows": known_aggressor,
+                "aggressor_known_pct": round(known_aggressor / max(processed_rows, 1) * 100, 2),
+                "rlp_rows": rlp_rows,
+                "session_dates": sorted(session_dates),
+                "warnings": warnings,
+            }
             con.execute(
                 """UPDATE bulk_imports SET status='FAILED',elapsed_seconds=?,
                    diagnostics_json=?,updated_at=now() WHERE file_hash=?""",
-                [elapsed,json.dumps({"error":str(exc),"warnings":warnings},ensure_ascii=False),file_hash],
+                [elapsed,json.dumps(failure_diagnostics,ensure_ascii=False),file_hash],
             )
             raise
+
+    store.record_import_batch(
+        data_kind="trades_bulk",
+        source=source,
+        file_name=path.name,
+        symbol=symbol_used,
+        first_ts=str(first_ts or ""),
+        last_ts=str(last_ts or ""),
+        rows_received=processed_rows,
+        rows_inserted=inserted_rows,
+        duplicates=max(0, processed_rows - inserted_rows),
+        diagnostics={
+            "file_hash": file_hash,
+            "file_size": file_size,
+            "source_order": source_order,
+            "chunk_rows": chunk_rows,
+            "session_dates": sorted(session_dates),
+            "aggressor_known_pct": round(known_aggressor / max(processed_rows, 1) * 100, 2),
+            "rlp_rows": rlp_rows,
+            "warnings": warnings,
+        },
+    )
 
     peak = tracemalloc.get_traced_memory()[1] / 1024 / 1024
     tracemalloc.stop()
