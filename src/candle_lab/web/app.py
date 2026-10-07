@@ -8,6 +8,7 @@ import tempfile
 from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
 
 from ..candles import build_candles, floor_time
 from ..importers import import_csv_with_report, import_generic_csv
@@ -19,13 +20,22 @@ from ..trajectory import analyze_trajectory_families
 from ..transitions import analyze_stability_and_transitions
 from ..storage import MarketStore
 from ..sample import generate_builtin_sample
+from ..slice import slice_profit_trades
 
 PACKAGE_DIR=Path(__file__).resolve().parent
 STATIC_DIR=PACKAGE_DIR/"static"
 PROJECT_ROOT=Path(__file__).resolve().parents[3]
 DEFAULT_DB=Path(os.environ.get("CANDLE_LAB_DB",PROJECT_ROOT/"data"/"candle_lab.duckdb"))
 DEFAULT_PARQUET=Path(os.environ.get("CANDLE_LAB_PARQUET",PROJECT_ROOT/"data"/"parquet"/"trades.parquet"))
-VERSION="0.11.0"
+VERSION="0.12.0"
+
+
+class SliceImportRequest(BaseModel):
+    source_path: str
+    symbol: str
+    start: datetime
+    end: datetime
+    tick_size: float = 5.0
 
 
 def create_app(db_path:str|Path=DEFAULT_DB)->FastAPI:
@@ -44,6 +54,23 @@ def create_app(db_path:str|Path=DEFAULT_DB)->FastAPI:
 
     @app.get("/api/sessions")
     def sessions(symbol:str):return store.list_sessions(symbol.strip().upper())
+
+    @app.get("/api/reference-overview")
+    def reference_overview():return store.reference_overview()
+
+    @app.get("/api/reference-sessions")
+    def reference_sessions(symbol:str):return store.list_reference_sessions(symbol.strip().upper())
+
+    @app.get("/api/reference-candles")
+    def reference_candles(symbol:str,session_date:date,interval_seconds:int=Query(60,ge=1,le=3600)):
+        symbol=symbol.strip().upper()
+        refs=store.load_reference_candles(symbol,session_date=session_date,interval_seconds=interval_seconds)
+        tick=store.tick_size(symbol)
+        return [{
+            "symbol":r.symbol,"start":r.start.isoformat(),"end":r.end.isoformat(),
+            "open":r.open_ticks*tick,"high":r.high_ticks*tick,"low":r.low_ticks*tick,"close":r.close_ticks*tick,
+            "volume":r.volume,"trades":r.trades,"source":r.source
+        } for r in refs]
 
     @app.get("/api/session-quality")
     def session_quality(symbol:str,session_date:date):
@@ -100,6 +127,37 @@ def create_app(db_path:str|Path=DEFAULT_DB)->FastAPI:
             return {**result,"batch_id":batch_id,"symbol":refs[0].symbol,"report":report.to_dict()}
         except Exception as exc:raise HTTPException(status_code=400,detail=str(exc)) from exc
         finally:temp_path.unlink(missing_ok=True)
+
+    @app.post("/api/slice-import")
+    def slice_import(request:SliceImportRequest):
+        symbol=request.symbol.strip().upper()
+        if not symbol:raise HTTPException(status_code=400,detail="Informe o contrato real.")
+        if request.end <= request.start:raise HTTPException(status_code=400,detail="O fim precisa ser posterior ao início.")
+        duration=(request.end-request.start).total_seconds()
+        if duration > 3*60*60:
+            raise HTTPException(status_code=400,detail="Selecione no máximo 3 horas por recorte para a análise profunda.")
+        try:
+            output_dir=PROJECT_ROOT/"data"/"slices"
+            output_name=f"{symbol}_{request.start.strftime('%Y%m%d-%H%M%S')}_{request.end.strftime('%H%M%S')}_TRADES.csv"
+            sliced=slice_profit_trades(
+                request.source_path,start=request.start,end=request.end,
+                output_path=output_dir/output_name,symbol=symbol
+            )
+            trades,report=import_csv_with_report(
+                sliced.output_path,symbol=symbol,tick_size=request.tick_size,source="profit_selected_slice"
+            )
+            result=store.add_trades(trades,tick_size=request.tick_size)
+            store.record_import_batch(
+                data_kind="selected_slice",source="profit_selected_slice",file_name=Path(sliced.output_path).name,
+                symbol=symbol,first_ts=trades[0].ts.isoformat(),last_ts=trades[-1].ts.isoformat(),
+                rows_received=result["received"],rows_inserted=result["inserted"],duplicates=result["duplicates"],
+                diagnostics={"slice":sliced.to_dict(),"import":report.to_dict()}
+            )
+            return {
+                "slice":sliced.to_dict(),"import":result,"report":report.to_dict(),
+                "message":"Recorte criado e importado. Agora selecione o pregão na Biblioteca para investigar os candles em profundidade."
+            }
+        except Exception as exc:raise HTTPException(status_code=400,detail=str(exc)) from exc
 
     @app.post("/api/load-sample")
     def load_sample():
