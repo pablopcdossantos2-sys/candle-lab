@@ -5,6 +5,7 @@ from zoneinfo import ZoneInfo
 from pathlib import Path
 
 from candle_lab.aggression import aggression_analysis
+from candle_lab.aggression_waves import aggression_wave_analysis
 from candle_lab.candles import build_candles
 from candle_lab.counterfactual import generate_ohlc_path
 from candle_lab.models import AggressorSide, Trade
@@ -107,6 +108,92 @@ class AggressionAnalysisTests(unittest.TestCase):
         level101=next(x for x in report["levels"] if x["price_ticks"]==101)
         self.assertEqual(level101["response"],"SEM_JANELA_POS_AGRESSAO")
         self.assertEqual(level101["future_observations"],0)
+
+class AggressionWaveTests(unittest.TestCase):
+    def _trade(self,start,i,price,side,qty=10,agent="A"):
+        return Trade(
+            "WINWAVE",
+            start+timedelta(seconds=i),
+            price,
+            qty,
+            aggressor=side,
+            buyer_id=agent if side==AggressorSide.BUY else "PASSIVO",
+            seller_id=agent if side==AggressorSide.SELL else "PASSIVO",
+            sequence_no=i+1,
+        )
+
+    def test_detects_buy_aggression_exhaustion_causally(self):
+        tz=ZoneInfo("America/Sao_Paulo")
+        start=datetime(2026,10,8,10,0,tzinfo=tz)
+        trades=[]
+        for i in range(10):
+            trades.append(self._trade(start,i,100+i//3,AggressorSide.BUY,10,"BUYER_A"))
+        for i in range(10,18):
+            trades.append(self._trade(start,i,103,AggressorSide.NONE,10,"NONE"))
+        report=aggression_wave_analysis(
+            trades,5.0,window_trades=5,activation_confirmations=2,release_confirmations=2,
+            post_event_horizon_trades=5,
+        )
+        self.assertTrue(report["causal_detection"])
+        self.assertGreaterEqual(len(report["termination_events"]),1)
+        event=report["termination_events"][0]
+        self.assertEqual(event["side"],"BUY")
+        self.assertEqual(event["termination_type"],"EXAUSTAO")
+        self.assertGreater(event["pressure_decay"],0.5)
+        self.assertEqual(event["top_aggressors"][0]["agent"],"BUYER_A")
+
+    def test_detects_control_handoff_to_opposite_side(self):
+        tz=ZoneInfo("America/Sao_Paulo")
+        start=datetime(2026,10,8,10,0,tzinfo=tz)
+        trades=[]
+        for i in range(10):
+            trades.append(self._trade(start,i,100+i//4,AggressorSide.BUY,10,"BUYER_A"))
+        for i in range(10,20):
+            trades.append(self._trade(start,i,102-(i-10)//3,AggressorSide.SELL,12,"SELLER_B"))
+        report=aggression_wave_analysis(
+            trades,5.0,window_trades=5,activation_confirmations=2,release_confirmations=2,
+            opposite_takeover=0.40,post_event_horizon_trades=5,
+        )
+        event=report["termination_events"][0]
+        self.assertEqual(event["termination_type"],"TROCA_CONTROLE")
+        self.assertLess(event["end_signed_dominance"],0)
+
+    def test_detection_index_does_not_change_when_future_is_appended(self):
+        tz=ZoneInfo("America/Sao_Paulo")
+        start=datetime(2026,10,8,10,0,tzinfo=tz)
+        prefix=[]
+        for i in range(10):
+            prefix.append(self._trade(start,i,100+i//3,AggressorSide.BUY,10,"BUYER_A"))
+        for i in range(10,18):
+            prefix.append(self._trade(start,i,103,AggressorSide.NONE,10,"NONE"))
+        future=[
+            self._trade(start,18+i,102-i//2,AggressorSide.SELL,10,"SELLER_B")
+            for i in range(8)
+        ]
+        kwargs=dict(window_trades=5,activation_confirmations=2,release_confirmations=2,post_event_horizon_trades=5)
+        a=aggression_wave_analysis(prefix,5.0,**kwargs)
+        b=aggression_wave_analysis(prefix+future,5.0,**kwargs)
+        self.assertEqual(a["termination_events"][0]["end_index"],b["termination_events"][0]["end_index"])
+        self.assertEqual(a["termination_events"][0]["termination_type"],b["termination_events"][0]["termination_type"])
+
+    def test_post_event_outcome_is_explicitly_marked_as_future_data(self):
+        tz=ZoneInfo("America/Sao_Paulo")
+        start=datetime(2026,10,8,10,0,tzinfo=tz)
+        trades=[]
+        for i in range(10):
+            trades.append(self._trade(start,i,100+i//3,AggressorSide.BUY,10,"BUYER_A"))
+        for i in range(10,18):
+            trades.append(self._trade(start,i,103,AggressorSide.NONE,10,"NONE"))
+        for i in range(18,24):
+            trades.append(self._trade(start,i,102-(i-18),AggressorSide.SELL,10,"SELLER_B"))
+        report=aggression_wave_analysis(
+            trades,5.0,window_trades=5,activation_confirmations=2,release_confirmations=2,
+            post_event_horizon_trades=6,reversal_ticks=2,
+        )
+        post=report["termination_events"][0]["post_event"]
+        self.assertTrue(post["uses_future_data"])
+        self.assertEqual(post["outcome"],"REVERSAO_COMPATIVEL")
+
 
 class CoreTests(unittest.TestCase):
     def test_build_candle(self):
@@ -676,6 +763,7 @@ class UiContractTests(unittest.TestCase):
             "indexProgressWrap","indexProgressPct","indexProgressText","indexProgressBar",
             "sliceProgressWrap","sliceProgressPct","sliceProgressText","sliceProgressBar",
             "aggressionKpis","topBuyAggressors","topSellAggressors","aggressionBody","aggressionMethod",
+            "waveSummary","openWaveBox","waveBody","waveMethod",
         ]
         for control_id in required_ids:
             self.assertIn(f'id="{control_id}"', html)
@@ -688,6 +776,8 @@ class UiContractTests(unittest.TestCase):
         self.assertIn("/api/time-index/jobs/", js)
         self.assertIn("/api/slice-import/start", js)
         self.assertIn("/api/slice-import/jobs/", js)
+        self.assertIn("renderAggressionWaves", js)
+        self.assertIn("drawWaveTerminationMarkers", js)
 
 class SessionQualityPersistenceTests(unittest.TestCase):
     def test_replace_session_quality_persists_payload_without_parameter_mismatch(self):
