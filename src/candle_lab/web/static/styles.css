@@ -34,3 +34,32 @@
 .aggression-wave-panel{margin-top:18px;padding-top:14px;border-top:1px solid #24384b}
 .aggression-wave-panel .expost-hidden{color:#8fa1b5;font-style:italic}
 .aggression-wave-panel table small{color:#8fa1b5}
+
+.interpretation-panel{margin-top:18px;padding-top:14px;border-top:1px solid #24384b}
+.interpretation-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:12px 0}
+.interpretation-block{padding:13px;border:1px solid #24384b;border-radius:10px;background:#091621}
+.interpretation-block h4{margin:0 0 9px}
+.interpretation-block>p{margin:0;line-height:1.55}
+.interpretation-list{display:grid;gap:8px}
+.interpretation-item{display:flex;gap:9px;align-items:flex-start;padding:8px 9px;border:1px solid #20374b;border-radius:8px;background:#0b1925}
+.interpretation-item p{margin:0;line-height:1.45}
+.item-index{flex:0 0 24px;height:24px;border-radius:999px;display:grid;place-items:center;background:#183149;color:#a8d7ff;font-weight:700;font-size:12px}
+.fact-code{flex:0 0 auto;padding:3px 6px;border-radius:6px;background:#183149;color:#a8d7ff;font-size:10px;font-weight:700;letter-spacing:.04em}
+.hypothesis-list{display:grid;gap:10px}
+.hypothesis-card{padding:13px;border:1px solid #2b4357;border-radius:10px;background:#0a1823}
+.hypothesis-card.confidence-forte{box-shadow:inset 4px 0 0 #63d7ae}
+.hypothesis-card.confidence-moderada{box-shadow:inset 4px 0 0 #f0b966}
+.hypothesis-card.confidence-fraca{box-shadow:inset 4px 0 0 #8fa1b5}
+.hypothesis-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:8px}
+.hypothesis-head small{color:#8fa1b5}
+.hypothesis-head h5{margin:2px 0 0;font-size:15px}
+.confidence-badge{white-space:nowrap;padding:4px 7px;border-radius:999px;border:1px solid #36536b;font-size:11px;color:#b6d9f6}
+.hypothesis-card p{margin:0 0 8px;line-height:1.55}
+.hypothesis-evidence,.hypothesis-counter{font-size:12px;margin-top:8px}
+.hypothesis-evidence ul,.hypothesis-counter ul{margin:5px 0 0 18px;padding:0}
+.hypothesis-counter{color:#c8a5aa}
+.interpretation-limitations{margin:12px 0;padding:10px 12px;border:1px solid #2a3c4d;border-radius:9px;background:#08131d}
+.interpretation-limitations summary{cursor:pointer;font-weight:700}
+.interpretation-item.limitation{background:#101820}
+#copyInterpretationBtn{margin-top:10px}
+@media(max-width:900px){.interpretation-grid{grid-template-columns:1fr}.hypothesis-head{display:block}.confidence-badge{display:inline-block;margin-top:7px}}
