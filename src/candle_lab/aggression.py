@@ -234,7 +234,7 @@ def aggression_analysis(trades: list[Trade], tick_size: float) -> dict[str, obje
 
     direction, dominance = _direction(total_buy, total_sell)
     strongest = sorted(
-        rows,
+        [row for row in rows if int(row["directed_aggression"]) > 0],
         key=lambda row: (-int(row["directed_aggression"]), -abs(int(row["delta"])), -int(row["volume"])),
     )
 
@@ -261,6 +261,7 @@ def aggression_analysis(trades: list[Trade], tick_size: float) -> dict[str, obje
             "rlp_volume": total_rlp,
             "unknown_volume": total_unknown,
             "aggressor_coverage": (known_total / total_volume if total_volume else 0.0),
+            "aggression_data_available": known_total > 0,
             "identified_aggressor_volume": identified_buy_qty + identified_sell_qty,
             "agent_identity_coverage": (
                 (identified_buy_qty + identified_sell_qty) / known_total if known_total else 0.0
