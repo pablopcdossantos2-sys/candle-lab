@@ -173,13 +173,13 @@ def slice_profit_trades(
             if not raw:
                 break
             scanned += 1
-            source_row += 1
             decoded = raw.decode(encoding).rstrip("\r\n")
             if not decoded.strip():
                 continue
             row = next(csv.reader([decoded], dialect=dialect))
             if not row or not any(cell.strip() for cell in row):
                 continue
+            source_row += 1
             if len(row) != 8:
                 raise ValueError(f"Linha-fonte {source_row}: esperado=8 colunas; recebido={len(row)}")
             ts = _parse_datetime(None, row[1], row[2])
