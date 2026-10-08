@@ -361,7 +361,7 @@ async function selectCandle(i,row){
   state.selected=state.candles[i];const symbol=$('symbolSelect').value,interval=$('intervalSelect').value;
   state.detail=await api('/api/candle-detail?symbol='+encodeURIComponent(symbol)+'&start='+encodeURIComponent(state.selected.start)+'&interval_seconds='+interval);
   state.replay=state.detail.timeline.length;$('selectedTitle').textContent=symbol+' · '+new Date(state.selected.start).toLocaleString('pt-BR');
-  ['labCard','researchCard','trajectoryCard','transitionCard'].forEach(id=>$(id).classList.remove('hidden'));renderDetail();
+  ['labCard','researchCard','validationCard','trajectoryCard','transitionCard'].forEach(id=>$(id).classList.remove('hidden'));renderDetail();
 }
 
 function aggressionIntensityLabel(x){
@@ -585,6 +585,86 @@ function renderDetail(){
 function play(){clearInterval(state.timer);state.replay=0;state.timer=setInterval(()=>{state.replay=Math.min(state.replay+1,state.detail.timeline.length);renderDetail();if(state.replay>=state.detail.timeline.length)clearInterval(state.timer)},35)}
 function matchHtml(rows){return (rows||[]).map(x=>'<div class="match"><span>'+new Date(x.feature.start).toLocaleString('pt-BR')+'<br><small>'+x.feature.session_regime+' · '+x.feature.volatility_bucket+'</small></span><strong>'+n(x.score,1)+'%</strong></div>').join('')||'<p>Sem candidatos.</p>'}
 async function research(){if(!state.selected)return;const p=new URLSearchParams({symbol:$('symbolSelect').value,start:state.selected.start,interval_seconds:$('intervalSelect').value,same_time:$('sameTime').checked,same_volatility:$('sameVol').checked,same_context_regime:$('sameContext').checked,other_sessions_only:$('otherSessions').checked,quality_only:'true'});const r=await api('/api/research/search?'+p);$('visualMatches').innerHTML=matchHtml(r.visual_matches);$('dnaMatches').innerHTML=matchHtml(r.dna_matches)}
+function hypothesisCodeLabel(code){
+  return ({
+    AGRESSAO_ALINHADA_ALTA:'Agressão alinhada à alta',
+    AGRESSAO_ALINHADA_BAIXA:'Agressão alinhada à baixa',
+    ALTA_COM_DELTA_VENDEDOR:'Alta com delta vendedor',
+    BAIXA_COM_DELTA_COMPRADOR:'Baixa com delta comprador',
+    REJEICAO_MAXIMA:'Rejeição / perda de eficiência na máxima',
+    REJEICAO_MINIMA:'Rejeição / perda de eficiência na mínima',
+    ONDA_ABERTA_SUSTENTA_FECHAMENTO:'Onda aberta sustentando fechamento',
+    DISPUTA_EQUILIBRADA:'Disputa equilibrada',
+    MUDANCA_CONTROLE_INTRABAR:'Mudança de controle intrabar'
+  })[code]||code;
+}
+function fmtOptionalPct(value){
+  return value==null?'—':pct(Number(value));
+}
+function fmtLift(value){
+  if(value==null)return '—';
+  const x=Number(value);
+  return (x>0?'+':'')+n(x,1)+' p.p.';
+}
+async function historicalValidation(){
+  const symbol=$('symbolSelect').value;
+  const interval=$('intervalSelect').value;
+  if(!symbol)return;
+  const horizons=$('validationHorizons').value.trim()||'1,3,5';
+  $('historicalValidationBtn').disabled=true;
+  $('validationNotice').textContent='Calculando interpretações históricas e desfechos contíguos…';
+  try{
+    const p=new URLSearchParams({symbol,interval_seconds:interval,horizons});
+    const r=await api('/api/research/hypothesis-validation?'+p);
+    const input=r.input||{};
+    const occurrences=r.hypothesis_occurrences||{};
+    const occurrenceTotal=Object.values(occurrences).reduce((a,b)=>a+Number(b||0),0);
+    const items=[
+      ['Candles elegíveis',n(input.eligible_candles||0,0)],
+      ['Hipóteses geradas',n(occurrenceTotal,0)],
+      ['Resultados direcionais',n((r.directional_results||[]).length,0)],
+      ['Modo',r.reference_mode==='REFERENCE_EXACT_REQUIRED'?'Referência EXACT':'Sem verificação externa']
+    ];
+    $('validationSummary').innerHTML=items.map(v=>'<div class="kpi"><span>'+esc(v[0])+'</span><strong>'+esc(v[1])+'</strong></div>').join('');
+
+    $('historicalValidationBody').innerHTML=(r.directional_results||[]).map(x=>{
+      const ci=x.wilson95_low==null?'—':pct(x.wilson95_low)+'–'+pct(x.wilson95_high);
+      return '<tr>'+
+        '<td><strong>'+esc(hypothesisCodeLabel(x.hypothesis_code))+'</strong><br><small>'+esc(x.validation_role||'')+'</small></td>'+
+        '<td>'+n(x.horizon_candles,0)+' candle(s)</td>'+
+        '<td>'+n(x.with_contiguous_outcome,0)+' / '+n(x.occurrences_total,0)+'</td>'+
+        '<td>'+esc(x.expected_direction||'—')+'</td>'+
+        '<td>'+fmtOptionalPct(x.directional_hit_rate)+'<br><small>≥2 ticks: '+fmtOptionalPct(x.two_tick_hit_rate)+'</small></td>'+
+        '<td>'+fmtOptionalPct(x.baseline_rate)+'</td>'+
+        '<td class="'+(Number(x.lift_percentage_points||0)>0?'delta-buy':Number(x.lift_percentage_points||0)<0?'delta-sell':'')+'">'+fmtLift(x.lift_percentage_points)+'</td>'+
+        '<td>'+ci+'</td>'+
+        '<td>'+esc(x.sample_status||'—')+'</td>'+
+      '</tr>';
+    }).join('')||'<tr><td colspan="9">Ainda não há ocorrências com candles futuros contíguos suficientes para medir desfechos.</td></tr>';
+
+    $('descriptiveValidation').innerHTML=(r.descriptive_results||[]).map(x=>
+      '<div class="match"><span>'+esc(hypothesisCodeLabel(x.hypothesis_code))+
+      '<br><small>'+esc(x.validation_role||'DESCRITIVA')+'</small></span><strong>'+n(x.occurrences_total,0)+'</strong></div>'
+    ).join('')||'<p class="muted">Nenhuma hipótese exclusivamente descritiva nesta amostra.</p>';
+
+    $('validationWarnings').innerHTML=(r.warnings||[]).map(x=>
+      '<div class="interpretation-item limitation"><p>'+esc(x)+'</p></div>'
+    ).join('');
+
+    const excluded=input.excluded||{};
+    const excludedCount=Object.values(excluded).reduce((a,b)=>a+Number(b||0),0);
+    $('validationNotice').textContent=
+      r.scope+' Candles elegíveis: '+n(input.eligible_candles||0,0)+
+      (excludedCount?' · excluídos: '+n(excludedCount,0)+'.':'')+
+      ' Não interprete lift positivo com amostra pequena como vantagem comprovada.';
+  }catch(err){
+    $('validationNotice').textContent='Erro: '+err.message;
+    $('historicalValidationBody').innerHTML='';
+  }finally{
+    $('historicalValidationBtn').disabled=false;
+  }
+}
+
 function familyLabel(x){return ({DIRECT_IMPULSE_UP:'Impulso direto de alta',DIRECT_IMPULSE_DOWN:'Impulso direto de baixa',SWEEP_LOW_REVERSAL:'Varredura da mínima → reversão',SWEEP_HIGH_REVERSAL:'Varredura da máxima → reversão',PULLBACK_CONTINUATION_UP:'Pullback → continuação de alta',PULLBACK_CONTINUATION_DOWN:'Pullback → continuação de baixa',V_SHAPED:'V-shaped',INVERTED_V:'V invertido',DOUBLE_EXCURSION:'Dupla excursão',OSCILLATING_RANGE:'Oscilação / range',UNCLASSIFIED:'Sem classificação',FLAT:'Flat'})[x]||x}
 async function trajectory(){const p=new URLSearchParams({symbol:$('symbolSelect').value,interval_seconds:$('intervalSelect').value,clusters:$('clusterSelect').value,sample_points:$('pointsSelect').value,quality_only:'true'});const r=await api('/api/trajectory/families?'+p);$('ruleFamilies').innerHTML=r.rule_families.map(x=>'<div class="family"><span>'+familyLabel(x.family)+'</span><strong>'+x.count+' · '+pct(x.share)+'</strong></div>').join('');$('clusters').innerHTML=r.clusters.map(x=>'<div class="cluster"><span>'+esc(x.label)+'<br><small>'+familyLabel(x.dominant_rule)+'</small></span><strong>'+x.size+'</strong></div>').join('')}
 async function transitions(){const p=new URLSearchParams({symbol:$('symbolSelect').value,interval_seconds:$('intervalSelect').value,clusters:$('clusterSelect').value,sample_points:$('pointsSelect').value,quality_only:'true'});if(state.selected)p.set('target_start',state.selected.start);const r=await api('/api/trajectory/transitions?'+p);$('stability').innerHTML=r.stability.map(x=>'<div class="transition"><span>'+familyLabel(x.family)+'<br><small>'+x.stability_label+' · '+x.sessions+' pregões</small></span><strong>'+n(x.stability_score,1)+'</strong></div>').join('');$('transitions').innerHTML=r.family_transitions.slice(0,12).map(x=>'<div class="transition"><span>'+familyLabel(x.from)+' → '+familyLabel(x.to)+'</span><strong>'+x.count+' · '+pct(x.probability)+'</strong></div>').join('');$('motifs').innerHTML=r.family_motifs.slice(0,8).map(x=>'<div class="transition"><span>'+x.sequence.map(familyLabel).join(' → ')+'</span><strong>'+x.count+'</strong></div>').join('');const s=r.selected_sequence;if(s&&s.current){const cell=(name,x)=>'<div><small>'+name+'</small><strong>'+(x?familyLabel(x.rule_family):'—')+'</strong></div>';$('sequenceBox').innerHTML=cell('Anterior',s.previous)+cell('Atual',s.current)+cell('Próximo',s.next)}else $('sequenceBox').innerHTML=''}
@@ -818,6 +898,7 @@ $('overviewSymbolSelect').onchange=loadOverviewSessions;$('overviewSessionSelect
 $('refreshBtn').onclick=refresh;$('symbolSelect').onchange=loadSessions;$('sessionSelect').onchange=loadCandles;$('intervalSelect').onchange=loadCandles;
 $('playBtn').onclick=play;$('stepBtn').onclick=()=>{state.replay=Math.min(state.replay+1,state.detail.timeline.length);renderDetail()};$('resetBtn').onclick=()=>{clearInterval(state.timer);state.replay=0;renderDetail()};
 $('researchBtn').onclick=research;$('trajectoryBtn').onclick=trajectory;$('transitionBtn').onclick=transitions;
+$('historicalValidationBtn').onclick=historicalValidation;
 $('copyInterpretationBtn').onclick=copyInterpretation;
 
 $('importForm').onsubmit=async e=>{
