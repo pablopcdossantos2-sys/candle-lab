@@ -2,7 +2,7 @@
 
 **Laboratório local para investigar como candles de futuros da B3 são formados negócio a negócio.**
 
-Versão atual: **0.14.1**
+Versão atual: **0.14.2**
 
 O Candle Lab B3 nasceu de uma pergunta simples: **dois candles visualmente parecidos necessariamente foram formados da mesma maneira?**
 
@@ -656,3 +656,12 @@ O localizador seletivo agora aceita:
 - valores numéricos no formato brasileiro em arquivos separados por ponto e vírgula.
 
 O recorte derivado é normalizado para um CSV interno inequívoco, sem modificar a fonte original.
+
+## Correções v0.14.2
+
+A v0.14.2 corrige duas situações observadas durante o teste com o CSV real:
+
+- preços do Profit como `205.935` passam a ser interpretados no contexto brasileiro como `205935`, isto é, ponto como separador de milhar;
+- a primeira construção do índice temporal agora exibe progresso real pela quantidade de bytes lidos, com porcentagem, linhas processadas, tamanho percorrido e minutos indexados.
+
+A interpretação brasileira é restrita ao perfil Profit. CSVs genéricos continuam usando a regra numérica anterior.
