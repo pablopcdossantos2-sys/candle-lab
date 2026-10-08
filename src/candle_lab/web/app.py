@@ -57,7 +57,10 @@ def create_app(db_path:str|Path=DEFAULT_DB)->FastAPI:
     store=MarketStore(db_path);app.state.store=store
     index_jobs:dict[str,dict[str,object]]={}
     index_jobs_lock=threading.Lock()
+    slice_jobs:dict[str,dict[str,object]]={}
+    slice_jobs_lock=threading.Lock()
     app.state.index_jobs=index_jobs
+    app.state.slice_jobs=slice_jobs
     app.mount("/static",StaticFiles(directory=STATIC_DIR),name="static")
 
     def _set_index_job(job_id:str,**changes:object)->None:
@@ -68,6 +71,16 @@ def create_app(db_path:str|Path=DEFAULT_DB)->FastAPI:
     def _get_index_job(job_id:str)->dict[str,object]|None:
         with index_jobs_lock:
             current=index_jobs.get(job_id)
+            return dict(current) if current is not None else None
+
+    def _set_slice_job(job_id:str,**changes:object)->None:
+        with slice_jobs_lock:
+            current=slice_jobs.setdefault(job_id,{"job_id":job_id})
+            current.update(changes)
+
+    def _get_slice_job(job_id:str)->dict[str,object]|None:
+        with slice_jobs_lock:
+            current=slice_jobs.get(job_id)
             return dict(current) if current is not None else None
 
     @app.get("/")
@@ -231,54 +244,156 @@ def create_app(db_path:str|Path=DEFAULT_DB)->FastAPI:
             }
         except Exception as exc:raise HTTPException(status_code=400,detail=str(exc)) from exc
 
-    @app.post("/api/slice-import")
-    def slice_import(request:SliceImportRequest):
+    def _validate_slice_request(request:SliceImportRequest)->str:
         symbol=request.symbol.strip().upper()
-        if not symbol:raise HTTPException(status_code=400,detail="Informe o contrato real.")
-        if request.end <= request.start:raise HTTPException(status_code=400,detail="O fim precisa ser posterior ao início.")
+        if not symbol:raise ValueError("Informe o contrato real.")
+        if request.end <= request.start:raise ValueError("O fim precisa ser posterior ao início.")
         duration=(request.end-request.start).total_seconds()
         if duration > 3*60*60:
-            raise HTTPException(status_code=400,detail="Selecione no máximo 3 horas por recorte para a análise profunda.")
+            raise ValueError("Selecione no máximo 3 horas por recorte para a análise profunda.")
+        return symbol
+
+    def _execute_slice_import(
+        request:SliceImportRequest,
+        progress:callable|None=None,
+    )->dict[str,object]:
+        symbol=_validate_slice_request(request)
+
+        def emit(percent:float,phase:str,message:str,**details:object)->None:
+            if progress:
+                progress({
+                    "percent":round(max(0.0,min(100.0,float(percent))),2),
+                    "phase":phase,
+                    "message":message,
+                    **details,
+                })
+
+        emit(1,"preparing","Validando o índice temporal e a seleção.")
+        def index_progress(info:dict[str,object])->None:
+            p=float(info.get("percent") or 0.0)
+            emit(
+                1 + p*0.14,"index",
+                "Reconstruindo o índice temporal necessário ao recorte.",
+                index_percent=p,
+                bytes_processed=info.get("bytes_processed",0),
+                bytes_total=info.get("bytes_total",0),
+                rows=info.get("rows",0),
+            )
+
+        index,built=ensure_time_index(
+            request.source_path,index_dir=PROJECT_ROOT/"data"/"indexes",
+            symbol=symbol,progress=index_progress
+        )
+        emit(15,"locating","Índice pronto. Localizando os bytes exatos do intervalo.",
+             index_built_now=built)
+        located=locate_interval(index,start=request.start,end=request.end)
+
+        output_dir=PROJECT_ROOT/"data"/"slices"
+        output_name=f"{symbol}_{request.start.strftime('%Y%m%d-%H%M%S')}_{request.end.strftime('%H%M%S')}_TRADES.csv"
+
+        def extract_progress(info:dict[str,object])->None:
+            p=float(info.get("percent") or 0.0)
+            emit(
+                15 + p*0.60,"extract",
+                "Extraindo os negócios do intervalo localizado.",
+                extract_percent=p,
+                bytes_processed=info.get("bytes_processed",0),
+                bytes_total=info.get("bytes_total",0),
+                scanned_rows=info.get("scanned_rows",0),
+                matched_rows=info.get("matched_rows",0),
+            )
+
+        sliced=slice_profit_trades(
+            request.source_path,start=request.start,end=request.end,
+            output_path=output_dir/output_name,symbol=symbol,
+            seek_byte_start=int(located["byte_start"]),
+            seek_byte_end=int(located["byte_end"]),
+            source_row_base=int(located["source_row_min"])-1,
+            progress=extract_progress,
+        )
+
+        emit(
+            80,"normalize","Recorte criado. Normalizando e validando os negócios.",
+            matched_rows=sliced.matched_rows,
+            output_bytes=sliced.output_size,
+        )
+        trades,report=import_csv_with_report(
+            sliced.output_path,symbol=symbol,tick_size=request.tick_size,source="profit_selected_slice"
+        )
+
+        emit(90,"store","Negócios validados. Gravando o recorte na biblioteca local.",
+             trades=len(trades))
+        if sliced.source_order=="DESCENDING":
+            source_rows=range(sliced.last_source_row,sliced.first_source_row-1,-1)
+        else:
+            source_rows=range(sliced.first_source_row,sliced.last_source_row+1)
+        result=store.add_selected_slice_trades(
+            trades,tick_size=request.tick_size,
+            source_fingerprint=index.source_sha256,source_rows=source_rows
+        )
+
+        emit(96,"catalog","Gravação concluída. Atualizando metadados e mapa de candles.",
+             inserted=result["inserted"],duplicates=result["duplicates"])
+        store.record_import_batch(
+            data_kind="selected_slice",source="profit_selected_slice",file_name=Path(sliced.output_path).name,
+            symbol=symbol,first_ts=trades[0].ts.isoformat(),last_ts=trades[-1].ts.isoformat(),
+            rows_received=result["received"],rows_inserted=result["inserted"],duplicates=result["duplicates"],
+            diagnostics={"slice":sliced.to_dict(),"import":report.to_dict()}
+        )
+        starts=request.candle_starts or [request.start]
+        line_map=locate_candles(index,candle_starts=starts,interval_seconds=request.interval_seconds)
+        payload={
+            "slice":sliced.to_dict(),"import":result,"report":report.to_dict(),
+            "time_index":{"built_now":built,**index_summary(index)},
+            "selection_locator":located,
+            "candle_line_map":line_map,
+            "message":"Recorte indexado criado e importado. A extração saltou diretamente para a região de bytes do intervalo selecionado."
+        }
+        emit(
+            100,"completed","Recorte criado, validado e importado com sucesso.",
+            matched_rows=sliced.matched_rows,inserted=result["inserted"],duplicates=result["duplicates"]
+        )
+        return payload
+
+    @app.post("/api/slice-import/start")
+    def slice_import_start(request:SliceImportRequest):
         try:
-            index,built=ensure_time_index(
-                request.source_path,index_dir=PROJECT_ROOT/"data"/"indexes",symbol=symbol
-            )
-            located=locate_interval(index,start=request.start,end=request.end)
-            output_dir=PROJECT_ROOT/"data"/"slices"
-            output_name=f"{symbol}_{request.start.strftime('%Y%m%d-%H%M%S')}_{request.end.strftime('%H%M%S')}_TRADES.csv"
-            sliced=slice_profit_trades(
-                request.source_path,start=request.start,end=request.end,
-                output_path=output_dir/output_name,symbol=symbol,
-                seek_byte_start=int(located["byte_start"]),
-                seek_byte_end=int(located["byte_end"]),
-                source_row_base=int(located["source_row_min"])-1,
-            )
-            trades,report=import_csv_with_report(
-                sliced.output_path,symbol=symbol,tick_size=request.tick_size,source="profit_selected_slice"
-            )
-            if sliced.source_order=="DESCENDING":
-                source_rows=range(sliced.last_source_row,sliced.first_source_row-1,-1)
-            else:
-                source_rows=range(sliced.first_source_row,sliced.last_source_row+1)
-            result=store.add_selected_slice_trades(
-                trades,tick_size=request.tick_size,
-                source_fingerprint=index.source_sha256,source_rows=source_rows
-            )
-            store.record_import_batch(
-                data_kind="selected_slice",source="profit_selected_slice",file_name=Path(sliced.output_path).name,
-                symbol=symbol,first_ts=trades[0].ts.isoformat(),last_ts=trades[-1].ts.isoformat(),
-                rows_received=result["received"],rows_inserted=result["inserted"],duplicates=result["duplicates"],
-                diagnostics={"slice":sliced.to_dict(),"import":report.to_dict()}
-            )
-            starts=request.candle_starts or [request.start]
-            line_map=locate_candles(index,candle_starts=starts,interval_seconds=request.interval_seconds)
-            return {
-                "slice":sliced.to_dict(),"import":result,"report":report.to_dict(),
-                "time_index":{"built_now":built,**index_summary(index)},
-                "selection_locator":located,
-                "candle_line_map":line_map,
-                "message":"Recorte indexado criado e importado. A extração saltou diretamente para a região de bytes do intervalo selecionado."
-            }
+            _validate_slice_request(request)
+        except ValueError as exc:
+            raise HTTPException(status_code=400,detail=str(exc)) from exc
+
+        job_id=uuid.uuid4().hex
+        request_copy=request.model_copy(deep=True)
+        _set_slice_job(job_id,status="queued",progress={
+            "phase":"queued","percent":0.0,"message":"Aguardando início do recorte."
+        })
+
+        def worker():
+            _set_slice_job(job_id,status="running")
+            try:
+                def on_progress(info:dict[str,object])->None:
+                    _set_slice_job(job_id,status="running",progress=dict(info))
+                result=_execute_slice_import(request_copy,progress=on_progress)
+                _set_slice_job(job_id,status="completed",progress={
+                    "phase":"completed","percent":100.0,
+                    "message":"Recorte criado, validado e importado com sucesso."
+                },result=result)
+            except Exception as exc:
+                _set_slice_job(job_id,status="failed",error=str(exc))
+
+        threading.Thread(target=worker,name=f"candle-lab-slice-{job_id[:8]}",daemon=True).start()
+        return {"job_id":job_id,"status":"queued"}
+
+    @app.get("/api/slice-import/jobs/{job_id}")
+    def slice_import_job(job_id:str):
+        payload=_get_slice_job(job_id)
+        if payload is None:raise HTTPException(status_code=404,detail="Tarefa de recorte não encontrada.")
+        return payload
+
+    @app.post("/api/slice-import")
+    def slice_import(request:SliceImportRequest):
+        try:
+            return _execute_slice_import(request)
         except Exception as exc:raise HTTPException(status_code=400,detail=str(exc)) from exc
 
     @app.post("/api/load-sample")
