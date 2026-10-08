@@ -48,16 +48,29 @@
 </section>
 
 <section class="card">
-  <div class="step-title"><span>3</span><div><h2>Gerar e importar o recorte Tick by Tick</h2><p>O CSV grande permanece onde está. O Candle Lab apenas o percorre em streaming e grava um arquivo pequeno contendo o intervalo selecionado.</p></div></div>
+  <div class="step-title"><span>3</span><div><h2>Localizar as linhas no CSV Tick by Tick</h2><p>Na primeira utilização, o Candle Lab cria um índice leve de 1 minuto com linhas e offsets de byte. Depois disso, localizar novos candles no mesmo arquivo é praticamente imediato.</p></div></div>
   <div class="local-path">
     <label>Caminho do CSV grande de Trades
       <input id="localTradesPath" type="text" placeholder='Ex.: C:\Dados\WINV26_2026-10-07_TRADES.csv'>
     </label>
     <label>Tick<input id="sliceTickInput" type="number" step="0.01" value="5"></label>
-    <button id="sliceBtn" class="primary" disabled>Recortar e importar intervalo</button>
+    <button id="locateBtn" disabled>Preparar índice e localizar</button>
   </div>
-  <div class="notice">No Windows, use <strong>Copiar como caminho</strong> no arquivo original e cole acima. O arquivo de centenas de MB não é copiado para a biblioteca; apenas o trecho selecionado é salvo em <code>data\slices</code>.</div>
-  <pre id="sliceResult" class="console compact">Selecione primeiro um intervalo no gráfico.</pre>
+  <div class="notice">Regra usada: <code>início do candle ≤ timestamp &lt; fim do candle</code>. Não são usadas médias de negócios por minuto. O índice registra as linhas físicas e os bytes reais do arquivo.</div>
+  <pre id="indexResult" class="console compact">Selecione primeiro um intervalo no gráfico.</pre>
+  <div id="lineMapWrap" class="table-wrap hidden">
+    <table>
+      <thead><tr><th>Candle</th><th>Linhas físicas</th><th>Linha da abertura</th><th>Linha do fechamento</th><th>Negócios</th><th>Bytes</th></tr></thead>
+      <tbody id="lineMapBody"></tbody>
+    </table>
+  </div>
+</section>
+
+<section class="card">
+  <div class="step-title"><span>4</span><div><h2>Gerar e importar o recorte</h2><p>Depois de localizar as linhas, o Candle Lab salta diretamente para a região correta do arquivo e grava somente o trecho selecionado.</p></div></div>
+  <button id="sliceBtn" class="primary" disabled>Recortar e importar intervalo localizado</button>
+  <div class="notice">O CSV grande continua no local original. Apenas o pequeno recorte é salvo em <code>data\slices</code>. O índice fica em <code>data\indexes</code> para reutilização posterior.</div>
+  <pre id="sliceResult" class="console compact">Prepare primeiro o índice temporal.</pre>
 </section>
 
 <section class="card secondary">
