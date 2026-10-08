@@ -399,6 +399,41 @@ class SelectiveSliceTests(unittest.TestCase):
             self.assertEqual([t.ts.strftime("%H:%M:%S") for t in trades],
                              ["10:01:00","10:01:59","10:02:00","10:02:30"])
 
+    def test_headerless_profit_file_with_trade_id_column_is_supported(self):
+        content = (
+            "WINID,07/10/26,10:02:00,1003,3 - Comprador,1020,1,85 - Vendedor,Vendedor\n"
+            "WINID,07/10/26,10:01:30,1002,3 - Comprador,1015,2,85 - Vendedor,Comprador\n"
+            "WINID,07/10/26,10:01:00,1001,3 - Comprador,1010,3,85 - Vendedor,RLP\n"
+            "WINID,07/10/26,10:00:59,1000,3 - Comprador,1005,1,85 - Vendedor,Comprador\n"
+        )
+        tz=ZoneInfo("America/Sao_Paulo")
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp)
+            source=root/"WINID.csv"
+            source.write_text(content,encoding="cp1252")
+            index=build_time_index(source,index_dir=root/"indexes",symbol="WINID")
+            self.assertIn("9 colunas",index.layout_profile)
+            located=locate_interval(
+                index,
+                start=datetime(2026,10,7,10,1,tzinfo=tz),
+                end=datetime(2026,10,7,10,2,tzinfo=tz),
+            )
+            self.assertEqual(located["trades"],2)
+            output=root/"slice.csv"
+            sliced=slice_profit_trades(
+                source,
+                start=datetime(2026,10,7,10,1,tzinfo=tz),
+                end=datetime(2026,10,7,10,2,tzinfo=tz),
+                output_path=output,
+                symbol="WINID",
+                seek_byte_start=located["byte_start"],
+                seek_byte_end=located["byte_end"],
+                source_row_base=located["source_row_min"]-1,
+            )
+            trades,report=import_csv_with_report(output,symbol="WINID",tick_size=5.0,source="selected_slice")
+            self.assertEqual(len(trades),2)
+            self.assertEqual([t.ts.strftime("%H:%M:%S") for t in trades],["10:01:00","10:01:30"])
+
     def test_time_index_locates_exact_rows_and_indexed_slice_matches(self):
         content = (
             "WINIDX,07/10/26,10:03:00,3 - Comprador,1030,1,85 - Vendedor,Comprador\n"
