@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections import Counter, defaultdict
+from collections import Counter
 from statistics import median
 
 from .candles import trade_sort_key
@@ -77,9 +77,12 @@ def _response_label(
     favorable_excursion_ticks: int,
     adverse_excursion_ticks: int,
     revisits: int,
+    future_observations: int,
 ) -> str:
     if direction not in {"COMPRA", "VENDA"} or dominance is None:
         return "DISPUTA_OU_INDEFINIDA"
+    if future_observations <= 0:
+        return "SEM_JANELA_POS_AGRESSAO"
     if intensity not in {"ALTA", "EXTREMA"} or dominance < 0.50:
         return "PRESSAO_SEM_CONFIRMACAO"
 
@@ -109,6 +112,7 @@ def aggression_analysis(trades: list[Trade], tick_size: float) -> dict[str, obje
     overall_sell_agent_trades: Counter[str] = Counter()
 
     total_buy = total_sell = total_rlp = total_unknown = 0
+    identified_buy_qty = identified_sell_qty = 0
 
     for idx, trade in enumerate(ordered):
         level = level_stats.setdefault(trade.price_ticks, {
@@ -141,6 +145,7 @@ def aggression_analysis(trades: list[Trade], tick_size: float) -> dict[str, obje
             total_buy += trade.quantity
             agent = (trade.buyer_id or "").strip()
             if agent:
+                identified_buy_qty += trade.quantity
                 level["buy_agents"][agent] += trade.quantity
                 level["buy_agent_trades"][agent] += 1
                 overall_buy_agents[agent] += trade.quantity
@@ -150,6 +155,7 @@ def aggression_analysis(trades: list[Trade], tick_size: float) -> dict[str, obje
             total_sell += trade.quantity
             agent = (trade.seller_id or "").strip()
             if agent:
+                identified_sell_qty += trade.quantity
                 level["sell_agents"][agent] += trade.quantity
                 level["sell_agent_trades"][agent] += 1
                 overall_sell_agents[agent] += trade.quantity
@@ -193,6 +199,7 @@ def aggression_analysis(trades: list[Trade], tick_size: float) -> dict[str, obje
             favorable_excursion_ticks=favorable,
             adverse_excursion_ticks=adverse,
             revisits=max(0, int(raw["visits"]) - 1),
+            future_observations=len(future_prices),
         )
 
         rows.append({
@@ -216,6 +223,7 @@ def aggression_analysis(trades: list[Trade], tick_size: float) -> dict[str, obje
             "favorable_excursion_ticks_after_level": favorable,
             "adverse_excursion_ticks_after_level": adverse,
             "response": response,
+            "future_observations": len(future_prices),
             "top_buy_aggressors": _top_agents(
                 raw["buy_agents"], raw["buy_agent_trades"], buy, limit=3
             ),
@@ -233,8 +241,13 @@ def aggression_analysis(trades: list[Trade], tick_size: float) -> dict[str, obje
     return {
         "model_version": AGGRESSION_MODEL_VERSION,
         "method": (
-            "Agressão executada observada no Times & Trades. Intensidade relativa aos níveis "
-            "do próprio candle; não é limiar universal de mercado."
+            "Agressão executada observada no Times & Trades. A intensidade usa o volume agressor "
+            "direcionado (BUY+SELL) acumulado em cada preço e o compara com os demais níveis do "
+            "mesmo candle; não é limiar universal de mercado."
+        ),
+        "intensity_method": (
+            "Com 4+ níveis direcionados: BAIXA < P40, MODERADA P40–P70, ALTA P70–P90, "
+            "EXTREMA >= P90. Com menos de 4 níveis, usa razão contra a mediana do candle."
         ),
         "limitations": (
             "Sem MBO/MBP, o Candle Lab não observa toda a liquidez passiva. "
@@ -248,6 +261,10 @@ def aggression_analysis(trades: list[Trade], tick_size: float) -> dict[str, obje
             "rlp_volume": total_rlp,
             "unknown_volume": total_unknown,
             "aggressor_coverage": (known_total / total_volume if total_volume else 0.0),
+            "identified_aggressor_volume": identified_buy_qty + identified_sell_qty,
+            "agent_identity_coverage": (
+                (identified_buy_qty + identified_sell_qty) / known_total if known_total else 0.0
+            ),
             "delta": total_buy - total_sell,
             "direction": direction,
             "dominance": dominance,
