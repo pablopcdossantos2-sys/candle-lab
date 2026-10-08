@@ -112,6 +112,13 @@
   <div class="step-title"><span>4</span><div><h2>Gerar e importar o recorte</h2><p>Depois de localizar as linhas, o Candle Lab salta diretamente para a região correta do arquivo e grava somente o trecho selecionado.</p></div></div>
   <button id="sliceBtn" class="primary" disabled>Recortar e importar intervalo localizado</button>
   <div class="notice">O CSV grande continua no local original. Apenas o pequeno recorte é salvo em <code>data\slices</code>. O índice fica em <code>data\indexes</code> para reutilização posterior.</div>
+  <div id="sliceProgressWrap" class="index-progress hidden" aria-live="polite">
+    <div class="index-progress-head">
+      <strong id="sliceProgressPct">0%</strong>
+      <span id="sliceProgressText">Aguardando início do recorte…</span>
+    </div>
+    <div class="index-progress-track"><div id="sliceProgressBar" class="index-progress-bar"></div></div>
+  </div>
   <pre id="sliceResult" class="console compact">Prepare primeiro o índice temporal.</pre>
 </section>
 
