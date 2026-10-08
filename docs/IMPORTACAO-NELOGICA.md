@@ -68,3 +68,26 @@ Para reconciliar com o volume interno do Candle Lab, usa-se **Quantidade**, não
 - Arquivos grandes são recebidos pela interface em blocos de 8 MiB, mas a ingestão analítica completa de centenas de MB ainda será otimizada para processamento em chunks diretamente no banco.
 
 Veja também `docs/VALIDACAO-EMPIRICA-V010.md`.
+
+
+## Arquivos de Trades com cabeçalho
+
+Desde a v0.14.1, o fluxo seletivo também aceita exportações de Trades que tragam linha de cabeçalho.
+
+O localizador reconhece cabeçalhos com aliases para campos como:
+
+- Ativo / Ticker / Symbol / Contrato;
+- Data;
+- Hora / Tempo / Horário;
+- Timestamp / Data Hora;
+- Preço;
+- Quantidade / Qtd.;
+- Agente Comprador;
+- Agente Vendedor;
+- Agressor.
+
+O arquivo pode conter colunas extras, como Número do Negócio. Elas não impedem a indexação.
+
+A linha de cabeçalho é preservada apenas como metadado da fonte. O pequeno recorte derivado é normalizado internamente para as 8 colunas necessárias ao Candle Lab, sem modificar o CSV original.
+
+As linhas mostradas na tabela do índice correspondem às **linhas físicas reais do arquivo original**, incluindo o deslocamento causado por eventual cabeçalho.
