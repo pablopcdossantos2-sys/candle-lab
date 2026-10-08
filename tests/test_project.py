@@ -479,6 +479,24 @@ class SelectiveSliceTests(unittest.TestCase):
             self.assertEqual(overview[0]["interval_seconds"], 60)
 
 
+class UiContractTests(unittest.TestCase):
+    def test_precise_interval_selection_controls_are_wired(self):
+        root = Path(__file__).resolve().parents[1]
+        html = (root / "src" / "candle_lab" / "web" / "static" / "index.html").read_text(encoding="utf-8")
+        js = (root / "src" / "candle_lab" / "web" / "static" / "app.js").read_text(encoding="utf-8")
+        required_ids = [
+            "zoomRange","zoomInBtn","zoomOutBtn","panLeftBtn","panRightBtn","resetZoomBtn",
+            "startTimeInput","endTimeInput","applyTimeSelectionBtn","zoomSelectionBtn",
+            "dayCanvas","selectionLabel","selectionCount","locateBtn","sliceBtn",
+        ]
+        for control_id in required_ids:
+            self.assertIn(f'id="{control_id}"', html)
+            self.assertIn(f"$('{control_id}')", js)
+        self.assertIn("Gráfico diário para seleção", html)
+        self.assertIn("INÍCIO", js)
+        self.assertIn("FIM", js)
+        self.assertIn("Ctrl", html)
+
 class StorageTests(unittest.TestCase):
     def test_duckdb_and_parquet_roundtrip(self):
         start = datetime(2026, 10, 7, 12, 0, tzinfo=UTC)
