@@ -14,11 +14,11 @@ if not exist ".venv\Scripts\python.exe" (
   echo.
 
   where py >nul 2>&1
-  if %errorlevel%==0 (
+  if not errorlevel 1 (
     py -3 -m venv .venv
   ) else (
     where python >nul 2>&1
-    if not %errorlevel%==0 (
+    if errorlevel 1 (
       echo ERRO: Python nao foi encontrado neste computador.
       echo.
       echo Instale Python 3.11 ou superior e marque a opcao
