@@ -217,8 +217,11 @@ class MarketStore:
             con.execute("DELETE FROM session_quality WHERE symbol=?",[symbol])
             for q in qualities:
                 key=f"{symbol}|{q.session_date.isoformat()}"
-                con.execute("INSERT INTO session_quality VALUES (?,?,?,?,current_timestamp)",
-                    [key,symbol,q.session_date,QUALITY_MODEL_VERSION,json.dumps(q.to_record(),ensure_ascii=False,default=str)])
+                con.execute("""INSERT INTO session_quality(
+                    quality_key,symbol,session_date,model_version,payload_json,updated_at
+                ) VALUES (?,?,?,?,?,current_timestamp)""",
+                    [key,symbol,q.session_date,QUALITY_MODEL_VERSION,
+                     json.dumps(q.to_record(),ensure_ascii=False,default=str)])
         return len(qualities)
 
     def tick_size(self,symbol:str)->float:
