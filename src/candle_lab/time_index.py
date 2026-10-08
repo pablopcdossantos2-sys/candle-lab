@@ -286,6 +286,11 @@ def locate_candles(
 ) -> list[dict[str, object]]:
     if interval_seconds <= 0:
         raise ValueError("interval_seconds deve ser > 0")
+    if interval_seconds % INDEX_GRANULARITY_SECONDS != 0:
+        raise ValueError(
+            "O índice temporal v0.13 é M1. O mapeamento exato de linhas aceita "
+            "timeframes múltiplos de 60 segundos (M1/M2/M5/M15 etc.)."
+        )
     result = []
     for candle_start in candle_starts:
         candle_end = candle_start + timedelta(seconds=interval_seconds)
