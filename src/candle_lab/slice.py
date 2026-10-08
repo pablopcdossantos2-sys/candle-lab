@@ -151,7 +151,23 @@ def _layout_from_header(row: list[str], *, physical_line: int) -> TradeCsvLayout
     )
 
 
-def _headerless_layout(*, physical_line: int) -> TradeCsvLayout:
+def _headerless_layout(*, physical_line: int, with_trade_id: bool = False) -> TradeCsvLayout:
+    if with_trade_id:
+        return TradeCsvLayout(
+            profile="Nelogica / Profit — Trades sem cabeçalho (9 colunas, com Número do Negócio)",
+            has_header=False,
+            header_line=0,
+            data_start_line=physical_line,
+            symbol_idx=0,
+            date_idx=1,
+            time_idx=2,
+            timestamp_idx=None,
+            buyer_idx=4,
+            price_idx=5,
+            quantity_idx=6,
+            seller_idx=7,
+            aggressor_idx=8,
+        )
     return TradeCsvLayout(
         profile="Nelogica / Profit — Trades sem cabeçalho (8 colunas)",
         has_header=False,
@@ -169,6 +185,21 @@ def _headerless_layout(*, physical_line: int) -> TradeCsvLayout:
     )
 
 
+def _looks_like_profit_headerless_trade_with_id(row: list[str]) -> bool:
+    if len(row) != 9:
+        return False
+    try:
+        datetime.strptime(row[1].strip(), "%d/%m/%y")
+        datetime.strptime(row[2].strip(), "%H:%M:%S")
+        _decimal_number(row[5])
+        qty = _decimal_number(row[6])
+        if qty != qty.to_integral_value() or qty <= 0:
+            return False
+    except (ValueError, IndexError):
+        return False
+    return row[8].strip().lower() in {"comprador", "vendedor", "rlp", "indefinido", "undefined", ""}
+
+
 def _detect_trade_layout(path: Path, *, encoding: str, dialect: csv.Dialect) -> TradeCsvLayout:
     first_nonblank: list[str] | None = None
     with path.open("r", encoding=encoding, newline="") as handle:
@@ -180,6 +211,8 @@ def _detect_trade_layout(path: Path, *, encoding: str, dialect: csv.Dialect) -> 
                 first_nonblank = row
             if _looks_like_profit_headerless_trade(row):
                 return _headerless_layout(physical_line=physical_line)
+            if _looks_like_profit_headerless_trade_with_id(row):
+                return _headerless_layout(physical_line=physical_line, with_trade_id=True)
             layout = _layout_from_header(row, physical_line=physical_line)
             if layout is not None:
                 return layout
@@ -189,7 +222,7 @@ def _detect_trade_layout(path: Path, *, encoding: str, dialect: csv.Dialect) -> 
     preview = " | ".join((first_nonblank or [])[:12])
     raise ValueError(
         "Não foi possível reconhecer o layout do CSV de Trades. "
-        "O Candle Lab aceita o layout Profit sem cabeçalho de 8 colunas ou um CSV com cabeçalho "
+        "O Candle Lab aceita layouts Profit sem cabeçalho de 8 ou 9 colunas, ou um CSV com cabeçalho "
         "contendo ao menos data/hora (ou timestamp), preço e quantidade. "
         f"Primeira linha não vazia observada: {preview!r}"
     )
