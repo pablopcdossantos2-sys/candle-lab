@@ -7,7 +7,68 @@ from datetime import datetime
 from pathlib import Path
 from typing import Callable
 
-from .importers import _detect_dialect, _detect_encoding, _looks_like_profit_headerless_trade, _parse_datetime
+from .importers import (
+    _detect_dialect,
+    _detect_encoding,
+    _looks_like_profit_headerless_trade,
+    _norm_header,
+    _parse_datetime,
+)
+
+
+@dataclass(frozen=True, slots=True)
+class TradeCsvLayout:
+    profile: str
+    has_header: bool
+    header_line: int
+    data_start_line: int
+    symbol_idx: int | None
+    date_idx: int | None
+    time_idx: int | None
+    timestamp_idx: int | None
+    buyer_idx: int | None
+    price_idx: int
+    quantity_idx: int
+    seller_idx: int | None
+    aggressor_idx: int | None
+
+    def value(self, row: list[str], idx: int | None) -> str:
+        if idx is None or idx < 0 or idx >= len(row):
+            return ""
+        return row[idx].strip()
+
+    def timestamp(self, row: list[str]) -> datetime:
+        return _parse_datetime(
+            self.value(row, self.timestamp_idx) or None,
+            self.value(row, self.date_idx) or None,
+            self.value(row, self.time_idx) or None,
+        )
+
+    def symbol(self, row: list[str]) -> str:
+        return self.value(row, self.symbol_idx).upper()
+
+    def canonical_row(self, row: list[str], *, fallback_symbol: str) -> list[str]:
+        ts = self.timestamp(row)
+        symbol = self.symbol(row) or fallback_symbol
+        return [
+            symbol,
+            ts.strftime("%d/%m/%y"),
+            ts.strftime("%H:%M:%S"),
+            self.value(row, self.buyer_idx),
+            self.value(row, self.price_idx),
+            self.value(row, self.quantity_idx),
+            self.value(row, self.seller_idx),
+            self.value(row, self.aggressor_idx),
+        ]
+
+
+@dataclass(frozen=True, slots=True)
+class SourceProbe:
+    encoding: str
+    dialect: csv.Dialect
+    symbol: str
+    source_order: str
+    layout: TradeCsvLayout
 
 
 @dataclass(frozen=True, slots=True)
@@ -29,43 +90,155 @@ class SliceResult:
     indexed_seek: bool
     source_byte_start: int
     source_byte_end: int
+    layout_profile: str
+    source_has_header: bool
+    source_header_line: int
     sha256: str
 
     def to_dict(self) -> dict[str, object]:
         return asdict(self)
 
 
-def _probe(path: Path, max_rows: int = 100_000) -> tuple[str, csv.Dialect, str, str]:
+_ALIASES = {
+    "symbol": {"ativo", "ticker", "symbol", "instrumento", "contrato"},
+    "date": {"data", "date", "session date", "session_date", "pregao", "pregão"},
+    "time": {"hora", "time", "tempo", "horario", "horário"},
+    "timestamp": {"timestamp", "datahora", "data hora", "datetime"},
+    "buyer": {"agente comprador", "comprador", "buyer", "buyer id", "buyer_id", "corretora compradora"},
+    "price": {"preco", "preço", "price", "valor", "preco negocio", "preço negócio"},
+    "quantity": {"quantidade", "qtd", "quantity", "qty", "volume quantidade"},
+    "seller": {"agente vendedor", "vendedor", "seller", "seller id", "seller_id", "corretora vendedora"},
+    "aggressor": {"agressor", "aggressor", "aggression", "lado agressor", "agressor lado"},
+}
+
+
+def _header_index(row: list[str], names: set[str]) -> int | None:
+    normalized = [_norm_header(cell) for cell in row]
+    wanted = {_norm_header(name) for name in names}
+    for idx, value in enumerate(normalized):
+        if value in wanted:
+            return idx
+    return None
+
+
+def _layout_from_header(row: list[str], *, physical_line: int) -> TradeCsvLayout | None:
+    price_idx = _header_index(row, _ALIASES["price"])
+    quantity_idx = _header_index(row, _ALIASES["quantity"])
+    timestamp_idx = _header_index(row, _ALIASES["timestamp"])
+    date_idx = _header_index(row, _ALIASES["date"])
+    time_idx = _header_index(row, _ALIASES["time"])
+    if price_idx is None or quantity_idx is None:
+        return None
+    if timestamp_idx is None and (date_idx is None or time_idx is None):
+        return None
+    return TradeCsvLayout(
+        profile="Nelogica / Profit — Trades com cabeçalho reconhecido",
+        has_header=True,
+        header_line=physical_line,
+        data_start_line=physical_line + 1,
+        symbol_idx=_header_index(row, _ALIASES["symbol"]),
+        date_idx=date_idx,
+        time_idx=time_idx,
+        timestamp_idx=timestamp_idx,
+        buyer_idx=_header_index(row, _ALIASES["buyer"]),
+        price_idx=price_idx,
+        quantity_idx=quantity_idx,
+        seller_idx=_header_index(row, _ALIASES["seller"]),
+        aggressor_idx=_header_index(row, _ALIASES["aggressor"]),
+    )
+
+
+def _headerless_layout(*, physical_line: int) -> TradeCsvLayout:
+    return TradeCsvLayout(
+        profile="Nelogica / Profit — Trades sem cabeçalho (8 colunas)",
+        has_header=False,
+        header_line=0,
+        data_start_line=physical_line,
+        symbol_idx=0,
+        date_idx=1,
+        time_idx=2,
+        timestamp_idx=None,
+        buyer_idx=3,
+        price_idx=4,
+        quantity_idx=5,
+        seller_idx=6,
+        aggressor_idx=7,
+    )
+
+
+def _detect_trade_layout(path: Path, *, encoding: str, dialect: csv.Dialect) -> TradeCsvLayout:
+    first_nonblank: list[str] | None = None
+    with path.open("r", encoding=encoding, newline="") as handle:
+        reader = csv.reader(handle, dialect=dialect)
+        for physical_line, row in enumerate(reader, start=1):
+            if not row or not any(cell.strip() for cell in row):
+                continue
+            if first_nonblank is None:
+                first_nonblank = row
+            if _looks_like_profit_headerless_trade(row):
+                return _headerless_layout(physical_line=physical_line)
+            layout = _layout_from_header(row, physical_line=physical_line)
+            if layout is not None:
+                return layout
+            if physical_line >= 50:
+                break
+
+    preview = " | ".join((first_nonblank or [])[:12])
+    raise ValueError(
+        "Não foi possível reconhecer o layout do CSV de Trades. "
+        "O Candle Lab aceita o layout Profit sem cabeçalho de 8 colunas ou um CSV com cabeçalho "
+        "contendo ao menos data/hora (ou timestamp), preço e quantidade. "
+        f"Primeira linha não vazia observada: {preview!r}"
+    )
+
+
+def _probe(path: Path, max_rows: int = 100_000, *, symbol: str | None = None) -> SourceProbe:
     encoding = _detect_encoding(path)
     with path.open("r", encoding=encoding, newline="") as handle:
         sample = handle.read(8192)
     dialect = _detect_dialect(sample)
+    layout = _detect_trade_layout(path, encoding=encoding, dialect=dialect)
 
     timestamps: list[datetime] = []
     symbols: set[str] = set()
+    user_symbol = (symbol or "").strip().upper()
+
     with path.open("r", encoding=encoding, newline="") as handle:
         reader = csv.reader(handle, dialect=dialect)
-        for row in reader:
+        for physical_line, row in enumerate(reader, start=1):
+            if physical_line < layout.data_start_line:
+                continue
             if not row or not any(cell.strip() for cell in row):
                 continue
-            if not timestamps and not _looks_like_profit_headerless_trade(row):
-                raise ValueError(
-                    "O recorte seletivo v0.12 espera o layout real de Trades do Profit sem cabeçalho e com 8 colunas."
-                )
-            if len(row) != 8:
-                raise ValueError(f"Layout inesperado: {len(row)} colunas; esperado=8")
-            symbols.add(row[0].strip().upper())
-            timestamps.append(_parse_datetime(None, row[1], row[2]))
-            distinct_times=len({ts for ts in timestamps})
+            try:
+                ts = layout.timestamp(row)
+            except (ValueError, IndexError) as exc:
+                if timestamps:
+                    raise ValueError(f"Linha {physical_line}: data/hora não reconhecida: {exc}") from exc
+                continue
+
+            file_symbol = layout.symbol(row)
+            if file_symbol:
+                symbols.add(file_symbol)
+            timestamps.append(ts)
+            distinct_times = len({item for item in timestamps})
             if len(timestamps) >= 2048 and distinct_times >= 3:
                 break
             if len(timestamps) >= max_rows:
                 break
 
     if not timestamps:
-        raise ValueError("Arquivo de Trades vazio")
-    if len(symbols) != 1:
+        raise ValueError("Nenhum negócio com data/hora válida foi encontrado no CSV")
+    if len(symbols) > 1:
         raise ValueError(f"O arquivo contém mais de um ativo: {', '.join(sorted(symbols))}")
+
+    file_symbol = next(iter(symbols), user_symbol)
+    if not file_symbol:
+        raise ValueError(
+            "O CSV não contém coluna de ativo reconhecível. Informe o contrato no formulário (ex.: WINV26)."
+        )
+    if user_symbol and symbols and user_symbol != file_symbol:
+        raise ValueError(f"Ativo informado ({user_symbol}) difere do arquivo ({file_symbol})")
 
     asc = desc = 0
     for left, right in zip(timestamps, timestamps[1:]):
@@ -82,16 +255,21 @@ def _probe(path: Path, max_rows: int = 100_000) -> tuple[str, csv.Dialect, str, 
     else:
         order = "MIXED"
     if order not in {"ASCENDING", "DESCENDING"}:
-        raise ValueError(f"Ordem temporal {order}; o recorte seletivo exige arquivo monotônico.")
-    return encoding, dialect, next(iter(symbols)), order
+        raise ValueError(
+            f"Ordem temporal {order}; o recorte seletivo exige um arquivo monotônico "
+            "(mais antigo→mais recente ou mais recente→mais antigo)."
+        )
+    return SourceProbe(
+        encoding=encoding,
+        dialect=dialect,
+        symbol=file_symbol,
+        source_order=order,
+        layout=layout,
+    )
 
 
 def source_fingerprint(path: str | Path, block_size: int = 1024 * 1024) -> str:
-    """Identidade rápida da fonte sem reler todo o CSV.
-
-    Usa tamanho + primeiro/último bloco. Serve para idempotência dos recortes;
-    não é apresentado como SHA-256 integral do arquivo original.
-    """
+    """Identidade rápida da fonte sem reler todo o CSV."""
     path = Path(path).resolve()
     stat = path.stat()
     digest = hashlib.sha256()
@@ -127,7 +305,7 @@ def slice_profit_trades(
     seek_byte_end: int | None = None,
     source_row_base: int = 0,
 ) -> SliceResult:
-    """Extrai [start, end) do CSV original sem carregar o arquivo inteiro em memória."""
+    """Extrai [start, end) sem carregar o CSV inteiro e normaliza o recorte para 8 colunas Profit."""
     source = Path(str(source_path).strip().strip('"')).expanduser().resolve()
     if not source.exists() or not source.is_file():
         raise FileNotFoundError(f"Arquivo não encontrado: {source}")
@@ -138,9 +316,12 @@ def slice_profit_trades(
     if end <= start:
         raise ValueError("O final do intervalo deve ser posterior ao início")
 
-    encoding, dialect, file_symbol, source_order = _probe(source)
+    probe = _probe(source, symbol=symbol)
+    encoding, dialect = probe.encoding, probe.dialect
+    layout, source_order = probe.layout, probe.source_order
+    file_symbol = probe.symbol
     symbol_used = (symbol or file_symbol).strip().upper()
-    if symbol_used != file_symbol:
+    if file_symbol and symbol_used != file_symbol:
         raise ValueError(f"Ativo informado ({symbol_used}) difere do arquivo ({file_symbol})")
 
     if output_path is None:
@@ -153,7 +334,7 @@ def slice_profit_trades(
     output.parent.mkdir(parents=True, exist_ok=True)
 
     scanned = matched = 0
-    source_row = int(source_row_base)
+    physical_line = int(source_row_base)
     stopped_early = False
     first_source_row = 0
     last_source_row = 0
@@ -163,7 +344,6 @@ def slice_profit_trades(
     byte_begin = int(seek_byte_start or 0)
     byte_limit = int(seek_byte_end) if seek_byte_end is not None else source_size
 
-    # O caminho indexado abre em binário para que tell/seek usem offsets físicos exatos.
     with source.open("rb") as src, output.open("w", encoding=encoding, newline="") as dst:
         if byte_begin:
             src.seek(byte_begin)
@@ -173,16 +353,24 @@ def slice_profit_trades(
             if not raw:
                 break
             scanned += 1
+            physical_line += 1
             decoded = raw.decode(encoding).rstrip("\r\n")
             if not decoded.strip():
                 continue
             row = next(csv.reader([decoded], dialect=dialect))
             if not row or not any(cell.strip() for cell in row):
                 continue
-            source_row += 1
-            if len(row) != 8:
-                raise ValueError(f"Linha-fonte {source_row}: esperado=8 colunas; recebido={len(row)}")
-            ts = _parse_datetime(None, row[1], row[2])
+
+            # Em varredura desde o início, ignore metadados/cabeçalho anteriores aos negócios.
+            if not indexed_seek and physical_line < layout.data_start_line:
+                continue
+            if layout.has_header and physical_line == layout.header_line:
+                continue
+
+            try:
+                ts = layout.timestamp(row)
+            except (ValueError, IndexError) as exc:
+                raise ValueError(f"Linha-fonte {physical_line}: data/hora inválida: {exc}") from exc
 
             include = False
             if source_order == "DESCENDING":
@@ -203,16 +391,16 @@ def slice_profit_trades(
                     include = True
 
             if include:
-                writer.writerow(row)
+                writer.writerow(layout.canonical_row(row, fallback_symbol=symbol_used))
                 matched += 1
                 if first_source_row == 0:
-                    first_source_row = source_row
-                last_source_row = source_row
+                    first_source_row = physical_line
+                last_source_row = physical_line
 
             if progress and scanned % 100_000 == 0:
                 progress({
                     "scanned_rows": scanned,
-                    "source_row": source_row,
+                    "source_row": physical_line,
                     "matched_rows": matched,
                     "source_order": source_order,
                     "source_bytes": source_size,
@@ -244,5 +432,8 @@ def slice_profit_trades(
         indexed_seek=indexed_seek,
         source_byte_start=byte_begin,
         source_byte_end=byte_limit,
+        layout_profile=layout.profile,
+        source_has_header=layout.has_header,
+        source_header_line=layout.header_line,
         sha256=_sha256(output),
     )
