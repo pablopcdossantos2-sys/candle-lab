@@ -8,7 +8,7 @@ import tempfile
 from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from ..candles import build_candles, floor_time
 from ..importers import import_csv_with_report, import_generic_csv
@@ -37,7 +37,7 @@ class TimeIndexRequest(BaseModel):
     start: datetime
     end: datetime
     interval_seconds: int = 60
-    candle_starts: list[datetime] = []
+    candle_starts: list[datetime] = Field(default_factory=list)
 
 
 class SliceImportRequest(BaseModel):
