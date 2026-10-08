@@ -687,3 +687,22 @@ https://ajuda.nelogica.com.br/hc/pt-br/articles/360046443212-Documenta%C3%A7%C3%
 Times & Trades:
 
 https://ajuda.nelogica.com.br/hc/pt-br/articles/360054569632-Times-Trades
+
+
+---
+
+## Arquivo de entrada para as futuras IAs
+
+Antes de solicitar a implementação de um candidato historicamente calibrado:
+
+1. execute **Validação histórica das hipóteses**;
+2. baixe o relatório JSON;
+3. entregue o JSON junto com o prompt específico da plataforma;
+4. exija que a IA descarte ou marque como exploratórias amostras insuficientes;
+5. exija verificação da documentação oficial da plataforma;
+6. mantenha uma etapa fora da amostra antes de qualquer uso operacional.
+
+Os arquivos de prompts são:
+
+- `prompts/PROMPTS-TRADINGVIEW-PINE-CANDLE-LAB.md`;
+- `prompts/PROMPTS-PROFIT-NTSL-CANDLE-LAB.md`.
