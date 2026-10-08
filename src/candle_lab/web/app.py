@@ -146,7 +146,14 @@ def create_app(db_path:str|Path=DEFAULT_DB)->FastAPI:
             trades,report=import_csv_with_report(
                 sliced.output_path,symbol=symbol,tick_size=request.tick_size,source="profit_selected_slice"
             )
-            result=store.add_trades(trades,tick_size=request.tick_size)
+            if sliced.source_order=="DESCENDING":
+                source_rows=range(sliced.last_source_row,sliced.first_source_row-1,-1)
+            else:
+                source_rows=range(sliced.first_source_row,sliced.last_source_row+1)
+            result=store.add_selected_slice_trades(
+                trades,tick_size=request.tick_size,
+                source_fingerprint=sliced.source_fingerprint,source_rows=source_rows
+            )
             store.record_import_batch(
                 data_kind="selected_slice",source="profit_selected_slice",file_name=Path(sliced.output_path).name,
                 symbol=symbol,first_ts=trades[0].ts.isoformat(),last_ts=trades[-1].ts.isoformat(),
