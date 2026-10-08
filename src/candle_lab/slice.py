@@ -112,7 +112,11 @@ _ALIASES = {
     "price": {"preco", "preço", "price", "valor", "preco negocio", "preço negócio"},
     "quantity": {"quantidade", "qtd", "quantity", "qty", "volume quantidade"},
     "seller": {"agente vendedor", "vendedor", "seller", "seller id", "seller_id", "corretora vendedora"},
-    "aggressor": {"agressor", "aggressor", "aggression", "lado agressor", "agressor lado"},
+    "aggressor": {
+        "agressor", "aggressor", "agressao", "agressão", "aggression",
+        "tipo agressao", "tipo agressão", "tipo de agressao", "tipo de agressão",
+        "lado agressor", "lado da agressao", "lado da agressão", "agressor lado",
+    },
 }
 
 
