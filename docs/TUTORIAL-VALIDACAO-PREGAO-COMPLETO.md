@@ -1,5 +1,7 @@
 # Tutorial — validar um pregão completo com um CSV grande
 
+> **Modo avançado/opcional desde a v0.12.** Para o uso normal, prefira `docs/TUTORIAL-FLUXO-SELETIVO.md`, que mantém o CSV grande fora da biblioteca e extrai apenas o trecho escolhido.
+
 Este tutorial foi criado para a v0.11 do Candle Lab B3 e foi pensado para quem não costuma trabalhar com terminal.
 
 O objetivo é processar, no próprio computador, o arquivo grande de **Trades/Tick by Tick** exportado pelo Profit e compará-lo ao arquivo de **1 minuto** do mesmo contrato e pregão.
