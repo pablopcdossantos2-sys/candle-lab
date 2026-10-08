@@ -7,7 +7,7 @@ from pathlib import Path
 from candle_lab.aggression import aggression_analysis
 from candle_lab.candles import build_candles
 from candle_lab.counterfactual import generate_ohlc_path
-from candle_lab.models import Trade
+from candle_lab.models import AggressorSide, Trade
 from candle_lab.importers import import_csv_with_report, _decimal_number, _profit_decimal_number
 from candle_lab.reconciliation import import_reference_candles, reconcile_observed_window, reconcile_available_candles
 from candle_lab.sample import generate_builtin_sample
