@@ -110,16 +110,48 @@ class MarketStore:
         trades=list(trades);rows=list(source_rows)
         if len(trades)!=len(rows):
             raise ValueError("Quantidade de trades e posições da fonte não coincide")
-        if not trades:return {"received":0,"inserted":0,"duplicates":0}
+        if not trades:return {"received":0,"inserted":0,"duplicates":0,"enriched":0}
         symbols={t.symbol for t in trades}
         if len(symbols)!=1:raise ValueError("Importe um contrato por vez")
         self.upsert_instrument(trades[0].symbol,tick_size)
         inserted=0
+        enriched=0
+        duplicates=0
         with self.connect() as con:
             for t,source_row in zip(trades,rows):
                 key=hashlib.sha256(f"{source_fingerprint}:{source_row}".encode()).hexdigest()
-                exists=con.execute("SELECT 1 FROM trades WHERE event_key=?",[key]).fetchone()
-                if exists:continue
+                exists=con.execute(
+                    "SELECT aggressor,buyer_id,seller_id,flags FROM trades WHERE event_key=?",
+                    [key],
+                ).fetchone()
+                if exists:
+                    duplicates+=1
+                    old_aggressor=str(exists[0] or "NONE")
+                    incoming_aggressor=t.aggressor.value
+                    better_aggressor=old_aggressor=="NONE" and incoming_aggressor in {"BUY","SELL"}
+                    better_buyer=not (exists[1] or "").strip() and bool((t.buyer_id or "").strip())
+                    better_seller=not (exists[2] or "").strip() and bool((t.seller_id or "").strip())
+                    better_flags=not (exists[3] or "").strip() and bool((t.flags or "").strip())
+                    if better_aggressor or better_buyer or better_seller or better_flags:
+                        con.execute(
+                            """UPDATE trades SET
+                                aggressor=CASE WHEN aggressor='NONE' AND ? IN ('BUY','SELL') THEN ? ELSE aggressor END,
+                                buyer_id=CASE WHEN coalesce(buyer_id,'')='' AND ? IS NOT NULL THEN ? ELSE buyer_id END,
+                                seller_id=CASE WHEN coalesce(seller_id,'')='' AND ? IS NOT NULL THEN ? ELSE seller_id END,
+                                flags=CASE WHEN coalesce(flags,'')='' AND ? IS NOT NULL THEN ? ELSE flags END,
+                                source_file_hash=coalesce(source_file_hash,?),
+                                source_row=coalesce(source_row,?)
+                               WHERE event_key=?""",
+                            [
+                                incoming_aggressor,incoming_aggressor,
+                                t.buyer_id,t.buyer_id,
+                                t.seller_id,t.seller_id,
+                                t.flags,t.flags,
+                                source_fingerprint,int(source_row),key,
+                            ],
+                        )
+                        enriched+=1
+                    continue
                 con.execute("""INSERT INTO trades(
                     event_key,symbol,ts,session_date,price_ticks,quantity,trade_id,aggressor,source,
                     buyer_id,seller_id,sequence_no,flags,source_file_hash,source_row
@@ -127,7 +159,7 @@ class MarketStore:
                     key,t.symbol,t.ts,t.ts.date(),t.price_ticks,t.quantity,t.trade_id,t.aggressor.value,t.source,
                     t.buyer_id,t.seller_id,t.sequence_no,t.flags,source_fingerprint,int(source_row)])
                 inserted+=1
-        return {"received":len(trades),"inserted":inserted,"duplicates":len(trades)-inserted}
+        return {"received":len(trades),"inserted":inserted,"duplicates":duplicates,"enriched":enriched}
 
     def add_reference_candles(self,references:Iterable[ReferenceCandle],*,tick_size:float)->dict[str,int]:
         refs=list(references)
