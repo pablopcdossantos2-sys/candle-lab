@@ -2,7 +2,7 @@ const $=id=>document.getElementById(id);
 const state={
   symbols:[],sessions:[],candles:[],detail:null,replay:0,timer:null,selected:null,
   overview:[],overviewSessions:[],overviewCandles:[],overviewMeta:null,
-  dragStart:null,dragCurrent:null,selection:null
+  dragStart:null,dragCurrent:null,selection:null,indexLocation:null
 };
 
 async function api(url,opts={}){
@@ -82,8 +82,12 @@ function finalizeSelection(){
   $('selectionLabel').textContent=clock(first.start)+' → '+clock(last.end);
   $('selectionCount').textContent=String(state.selection.count);
   $('selectionInfo').classList.remove('hidden');
-  $('sliceBtn').disabled=false;
-  $('sliceResult').textContent='Intervalo pronto. Cole o caminho do CSV grande de Trades e clique em “Recortar e importar intervalo”.';
+  state.indexLocation=null;
+  $('locateBtn').disabled=false;
+  $('sliceBtn').disabled=true;
+  $('lineMapWrap').classList.add('hidden');
+  $('indexResult').textContent='Intervalo pronto. Cole o caminho do CSV grande e clique em “Preparar índice e localizar”.';
+  $('sliceResult').textContent='Prepare primeiro o índice temporal.';
   drawDayChart();
 }
 
@@ -113,8 +117,8 @@ async function loadOverviewCandles(){
   const meta=state.overviewSessions[idx];if(!symbol||!meta)return;
   state.overviewMeta=state.overview.find(x=>x.symbol===symbol&&x.session_date===meta.session_date&&x.interval_seconds===meta.interval_seconds)||meta;
   state.overviewCandles=await api('/api/reference-candles?symbol='+encodeURIComponent(symbol)+'&session_date='+meta.session_date+'&interval_seconds='+meta.interval_seconds);
-  state.dragStart=null;state.dragCurrent=null;state.selection=null;
-  $('selectionInfo').classList.add('hidden');$('sliceBtn').disabled=true;
+  state.dragStart=null;state.dragCurrent=null;state.selection=null;state.indexLocation=null;
+  $('selectionInfo').classList.add('hidden');$('locateBtn').disabled=true;$('sliceBtn').disabled=true;$('lineMapWrap').classList.add('hidden');
   $('overviewEmpty').classList.toggle('hidden',state.overviewCandles.length>0);
   if(state.overviewMeta&&state.overviewMeta.tick_size)$('sliceTickInput').value=state.overviewMeta.tick_size;
   drawDayChart();
@@ -177,17 +181,72 @@ $('dayCanvas').addEventListener('mousedown',e=>{if(!state.overviewCandles.length
 $('dayCanvas').addEventListener('mousemove',e=>{if(state.dragStart==null||e.buttons!==1)return;state.dragCurrent=dayIndexFromEvent(e);drawDayChart()});
 $('dayCanvas').addEventListener('mouseup',e=>{if(state.dragStart==null)return;state.dragCurrent=dayIndexFromEvent(e);finalizeSelection()});
 $('dayCanvas').addEventListener('mouseleave',e=>{if(state.dragStart!=null&&e.buttons===1){state.dragCurrent=dayIndexFromEvent(e);finalizeSelection()}});
-$('clearSelectionBtn').onclick=()=>{state.dragStart=null;state.dragCurrent=null;state.selection=null;$('selectionInfo').classList.add('hidden');$('sliceBtn').disabled=true;$('sliceResult').textContent='Selecione primeiro um intervalo no gráfico.';drawDayChart()};
+$('clearSelectionBtn').onclick=()=>{state.dragStart=null;state.dragCurrent=null;state.selection=null;state.indexLocation=null;$('selectionInfo').classList.add('hidden');$('locateBtn').disabled=true;$('sliceBtn').disabled=true;$('lineMapWrap').classList.add('hidden');$('indexResult').textContent='Selecione primeiro um intervalo no gráfico.';$('sliceResult').textContent='Prepare primeiro o índice temporal.';drawDayChart()};
 
-$('sliceBtn').onclick=async()=>{
+function selectedCandleStarts(){
+  if(!state.selection)return[];
+  return state.overviewCandles
+    .slice(state.selection.startIndex,state.selection.endIndex+1)
+    .map(c=>c.start);
+}
+
+function renderLineMap(payload){
+  const rows=payload.candles||[];
+  $('lineMapBody').innerHTML=rows.map(x=>{
+    if(x.status!=='FOUND')return '<tr><td>'+shortClock(x.start)+'</td><td colspan="5">Sem negócios no índice</td></tr>';
+    return '<tr><td>'+shortClock(x.start)+'–'+shortClock(x.end)+'</td>'+
+      '<td>'+n(x.source_row_min,0)+'–'+n(x.source_row_max,0)+'</td>'+
+      '<td>'+n(x.chronological_open_row,0)+'</td>'+
+      '<td>'+n(x.chronological_close_row,0)+'</td>'+
+      '<td>'+n(x.trades,0)+'</td>'+
+      '<td>'+n(x.byte_start,0)+'–'+n(x.byte_end,0)+'</td></tr>';
+  }).join('');
+  $('lineMapWrap').classList.toggle('hidden',rows.length===0);
+}
+
+$('locateBtn').onclick=async()=>{
   if(!state.selection||!state.overviewMeta)return;
   const path=$('localTradesPath').value.trim();
-  if(!path){$('sliceResult').textContent='Cole primeiro o caminho do CSV grande de Trades.';return}
-  $('sliceBtn').disabled=true;$('sliceResult').textContent='Percorrendo o arquivo grande e extraindo somente o intervalo selecionado…';
+  if(!path){$('indexResult').textContent='Cole primeiro o caminho do CSV grande de Trades.';return}
+  $('locateBtn').disabled=true;$('sliceBtn').disabled=true;
+  $('indexResult').textContent='Preparando o índice temporal. Na primeira vez o arquivo inteiro é lido uma única vez; nas próximas seleções o índice será reutilizado…';
   try{
-    const payload={source_path:path,symbol:state.overviewMeta.symbol,start:state.selection.start,end:state.selection.end,tick_size:Number($('sliceTickInput').value)};
+    const payload={
+      source_path:path,symbol:state.overviewMeta.symbol,start:state.selection.start,end:state.selection.end,
+      interval_seconds:state.overviewMeta.interval_seconds,candle_starts:selectedCandleStarts()
+    };
+    const r=await api('/api/time-index/locate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    state.indexLocation=r;
+    renderLineMap(r);
+    const mode=r.index_built_now?'Índice criado agora':'Índice existente reutilizado';
+    $('indexResult').textContent=
+      mode+'.\n'+
+      'Arquivo: '+n(r.index.rows,0)+' linhas · '+r.index.minutes_indexed+' minutos indexados.\n'+
+      'Seleção: linhas '+n(r.selection.source_row_min,0)+'–'+n(r.selection.source_row_max,0)+
+      ' · '+n(r.selection.trades,0)+' negócios · '+n(r.selection.byte_length,0)+' bytes.\n'+
+      'Abertura cronológica na linha '+n(r.selection.chronological_open_row,0)+
+      '; fechamento cronológico na linha '+n(r.selection.chronological_close_row,0)+'.';
+    $('sliceBtn').disabled=false;
+    $('sliceResult').textContent='Linhas localizadas. Clique em “Recortar e importar intervalo localizado”.';
+  }catch(err){
+    state.indexLocation=null;$('lineMapWrap').classList.add('hidden');
+    $('indexResult').textContent='Erro: '+err.message;
+  }finally{$('locateBtn').disabled=false}
+};
+
+$('sliceBtn').onclick=async()=>{
+  if(!state.selection||!state.overviewMeta||!state.indexLocation)return;
+  const path=$('localTradesPath').value.trim();
+  if(!path){$('sliceResult').textContent='Cole primeiro o caminho do CSV grande de Trades.';return}
+  $('sliceBtn').disabled=true;$('sliceResult').textContent='Saltando para os bytes localizados e extraindo somente o intervalo selecionado…';
+  try{
+    const payload={
+      source_path:path,symbol:state.overviewMeta.symbol,start:state.selection.start,end:state.selection.end,
+      tick_size:Number($('sliceTickInput').value),interval_seconds:state.overviewMeta.interval_seconds,
+      candle_starts:selectedCandleStarts()
+    };
     const r=await api('/api/slice-import',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
-    $('sliceResult').textContent='Recorte concluído.\n\n'+JSON.stringify(r,null,2);
+    $('sliceResult').textContent='Recorte concluído por acesso indexado.\n\n'+JSON.stringify(r,null,2);
     await refresh();
     if([...$('symbolSelect').options].some(o=>o.value===payload.symbol)){$('symbolSelect').value=payload.symbol;await loadSessions()}
     const date=state.overviewMeta.session_date;
