@@ -6,14 +6,17 @@ from pathlib import Path
 
 from candle_lab.aggression import aggression_analysis
 from candle_lab.aggression_waves import aggression_wave_analysis
+from candle_lab.interpretation import interpret_candle
 from candle_lab.candles import build_candles
 from candle_lab.counterfactual import generate_ohlc_path
+from candle_lab.metrics import candle_dna
 from candle_lab.models import AggressorSide, Trade
 from candle_lab.importers import import_csv_with_report, _decimal_number, _profit_decimal_number
 from candle_lab.reconciliation import import_reference_candles, reconcile_observed_window, reconcile_available_candles
 from candle_lab.sample import generate_builtin_sample
 from candle_lab.quality import assess_library_quality
 from candle_lab.storage import MarketStore
+from candle_lab.services import candle_detail_payload
 from candle_lab.trajectory import classify_rule_family, deterministic_kmeans
 from candle_lab.transitions import analyze_stability_and_transitions
 from candle_lab.bulk import bulk_import_profit_file, aggregate_candles_sql, reconcile_store_references, export_session_parquet
@@ -195,6 +198,81 @@ class AggressionWaveTests(unittest.TestCase):
         post=report["termination_events"][0]["post_event"]
         self.assertTrue(post["uses_future_data"])
         self.assertEqual(post["outcome"],"REVERSAO_COMPATIVEL")
+
+
+class CandleInterpretationTests(unittest.TestCase):
+    def _report(self,trades,tick_size=5.0):
+        ordered=sorted(trades,key=lambda t:(t.ts,t.sequence_no or 0))
+        candle=build_candles(ordered,60)[0]
+        dna=candle_dna(ordered,interval_seconds=60)
+        aggression=aggression_analysis(ordered,tick_size)
+        waves=aggression_wave_analysis(ordered,tick_size,window_trades=5,activation_confirmations=2,release_confirmations=2)
+        return interpret_candle(
+            ordered,candle=candle,dna=dna,aggression=aggression,waves=waves,tick_size=tick_size
+        )
+
+    def test_directional_bull_candle_produces_aligned_aggression_hypothesis(self):
+        tz=ZoneInfo("America/Sao_Paulo")
+        start=datetime(2026,10,8,11,0,tzinfo=tz)
+        trades=[
+            Trade("WININT",start+timedelta(seconds=i),100+i//2,10,
+                  aggressor=AggressorSide.BUY,buyer_id="BUYER_A",seller_id="PASSIVO",sequence_no=i+1)
+            for i in range(12)
+        ]
+        report=self._report(trades)
+        self.assertEqual(report["geometry"]["direction"],"ALTA")
+        self.assertGreater(len(report["observed_facts"]),2)
+        codes={h["code"] for h in report["hypotheses"]}
+        self.assertIn("AGRESSAO_ALINHADA_ALTA",codes)
+        self.assertIn("hipóteses explicativas",report["closing_synthesis"].lower())
+        self.assertEqual(len(report["phase_analysis"]),3)
+
+    def test_price_up_with_negative_delta_generates_absorption_hypothesis_not_fact(self):
+        tz=ZoneInfo("America/Sao_Paulo")
+        start=datetime(2026,10,8,11,0,tzinfo=tz)
+        trades=[]
+        prices=[100,100,101,101,102,102,103,103,104,104,105,105]
+        for i,p in enumerate(prices):
+            side=AggressorSide.SELL if i<9 else AggressorSide.BUY
+            trades.append(Trade(
+                "WININT",start+timedelta(seconds=i),p,10,aggressor=side,
+                buyer_id="B",seller_id="SELLER_X",sequence_no=i+1
+            ))
+        report=self._report(trades)
+        hypothesis=next(h for h in report["hypotheses"] if h["code"]=="ALTA_COM_DELTA_VENDEDOR")
+        self.assertIn("hipótese",hypothesis["explanation"].lower())
+        self.assertIn("não prova",report["closing_synthesis"].lower())
+        observed_text=" ".join(x["text"] for x in report["observed_facts"]).lower()
+        self.assertNotIn("absorção comprovada",observed_text)
+
+    def test_low_aggressor_coverage_reduces_evidence_quality(self):
+        tz=ZoneInfo("America/Sao_Paulo")
+        start=datetime(2026,10,8,11,0,tzinfo=tz)
+        trades=[]
+        for i in range(30):
+            side=AggressorSide.BUY if i<3 else AggressorSide.NONE
+            flags=None if side==AggressorSide.BUY else "raw_aggressor=RLP"
+            trades.append(Trade(
+                "WININT",start+timedelta(seconds=i),100+i//10,5,aggressor=side,
+                buyer_id="A",seller_id="B",flags=flags,sequence_no=i+1
+            ))
+        report=self._report(trades)
+        self.assertEqual(report["evidence_quality"]["label"],"LIMITADA")
+        self.assertIn("qualidade da evidência",report["limitations"][0].lower())
+
+    def test_candle_detail_payload_contains_interpretation(self):
+        tz=ZoneInfo("America/Sao_Paulo")
+        start=datetime(2026,10,8,11,0,tzinfo=tz)
+        trades=[
+            Trade("WININT",start+timedelta(seconds=i),100+(i%4),2,
+                  aggressor=AggressorSide.BUY if i%3 else AggressorSide.SELL,
+                  buyer_id="B1",seller_id="S1",sequence_no=i+1)
+            for i in range(30)
+        ]
+        payload=candle_detail_payload(trades,60,5.0)
+        self.assertIn("interpretation",payload)
+        self.assertIn("closing_synthesis",payload["interpretation"])
+        self.assertTrue(payload["interpretation"]["label"].startswith("RELATORIO_INTERPRETATIVO"))
 
 
 class CoreTests(unittest.TestCase):
@@ -766,6 +844,9 @@ class UiContractTests(unittest.TestCase):
             "sliceProgressWrap","sliceProgressPct","sliceProgressText","sliceProgressBar",
             "aggressionKpis","topBuyAggressors","topSellAggressors","aggressionBody","aggressionMethod",
             "waveSummary","openWaveBox","waveBody","waveMethod",
+            "interpretationReplayNotice","interpretationContent","interpretationQuality",
+            "closingSynthesis","processDescription","observedFacts","hypothesisList",
+            "interpretationLimitations","copyInterpretationBtn",
         ]
         for control_id in required_ids:
             self.assertIn(f'id="{control_id}"', html)
@@ -780,6 +861,8 @@ class UiContractTests(unittest.TestCase):
         self.assertIn("/api/slice-import/jobs/", js)
         self.assertIn("renderAggressionWaves", js)
         self.assertIn("drawWaveTerminationMarkers", js)
+        self.assertIn("renderInterpretation", js)
+        self.assertIn("copyInterpretation", js)
 
 class SessionQualityPersistenceTests(unittest.TestCase):
     def test_replace_session_quality_persists_payload_without_parameter_mismatch(self):
