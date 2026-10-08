@@ -2,7 +2,7 @@
 
 **Laboratório local para investigar como candles de futuros da B3 são formados negócio a negócio.**
 
-Versão atual: **0.15.0**
+Versão atual: **0.16.0**
 
 O Candle Lab B3 nasceu de uma pergunta simples: **dois candles visualmente parecidos necessariamente foram formados da mesma maneira?**
 
@@ -706,3 +706,22 @@ Também há rankings gerais de agentes agressores do candle.
 A classificação de intensidade é relativa aos níveis do próprio candle. `RLP` e volume sem agressor conhecido permanecem separados. Os rótulos de possível absorção/impulso são heurísticas descritivas, não prova causal.
 
 Veja `docs/AGRESSAO-POR-PRECO.md`.
+
+
+## Término das ondas de agressão — v0.16.0
+
+A v0.16 identifica causalmente momentos em que uma onda de agressão compradora ou vendedora deixa de dominar o fluxo executado.
+
+Os eventos são classificados como:
+
+- `EXAUSTAO`: a pressão do lado dominante cai fortemente em relação ao pico da onda;
+- `NEUTRALIZACAO`: a dominância desaparece sem tomada clara pelo lado oposto;
+- `TROCA_CONTROLE`: o lado oposto passa a dominar a janela de negócios.
+
+Cada evento registra horário, negócio de confirmação, preço, queda da pressão, dominância, principais agentes da onda e duração.
+
+A detecção usa apenas negócios já ocorridos até o instante do evento. A reação posterior do preço é calculada separadamente como análise **EX-POST** e nunca participa da detecção.
+
+No replay, os marcadores `T1`, `T2`, ... só aparecem depois que o término foi confirmado. A coluna de resultado posterior permanece oculta até o fim do replay.
+
+Veja `docs/TERMINO-ONDAS-AGRESSAO.md`.
