@@ -10,3 +10,4 @@ data/parquet/**/*.parquet
 data/reports/*.html
 data/reports/*.json
 data/slices/*.csv
+data/indexes/*.cidx.json
