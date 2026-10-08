@@ -7,7 +7,7 @@ from .candles import trade_sort_key
 from .models import AggressorSide, Trade
 
 
-AGGRESSION_MODEL_VERSION = "1.0"
+AGGRESSION_MODEL_VERSION = "1.1"
 
 
 def _is_rlp(trade: Trade) -> bool:
@@ -112,6 +112,7 @@ def aggression_analysis(trades: list[Trade], tick_size: float) -> dict[str, obje
     overall_sell_agent_trades: Counter[str] = Counter()
 
     total_buy = total_sell = total_rlp = total_unknown = 0
+    buy_trades = sell_trades = rlp_trades = unknown_trades = 0
     identified_buy_qty = identified_sell_qty = 0
 
     for idx, trade in enumerate(ordered):
@@ -143,6 +144,7 @@ def aggression_analysis(trades: list[Trade], tick_size: float) -> dict[str, obje
         if trade.aggressor == AggressorSide.BUY:
             level["buy"] = int(level["buy"]) + trade.quantity
             total_buy += trade.quantity
+            buy_trades += 1
             agent = (trade.buyer_id or "").strip()
             if agent:
                 identified_buy_qty += trade.quantity
@@ -153,6 +155,7 @@ def aggression_analysis(trades: list[Trade], tick_size: float) -> dict[str, obje
         elif trade.aggressor == AggressorSide.SELL:
             level["sell"] = int(level["sell"]) + trade.quantity
             total_sell += trade.quantity
+            sell_trades += 1
             agent = (trade.seller_id or "").strip()
             if agent:
                 identified_sell_qty += trade.quantity
@@ -163,9 +166,11 @@ def aggression_analysis(trades: list[Trade], tick_size: float) -> dict[str, obje
         elif _is_rlp(trade):
             level["rlp"] = int(level["rlp"]) + trade.quantity
             total_rlp += trade.quantity
+            rlp_trades += 1
         else:
             level["unknown"] = int(level["unknown"]) + trade.quantity
             total_unknown += trade.quantity
+            unknown_trades += 1
 
     known_total = total_buy + total_sell
     directed_by_level = [int(v["buy"]) + int(v["sell"]) for v in level_stats.values()]
@@ -233,6 +238,33 @@ def aggression_analysis(trades: list[Trade], tick_size: float) -> dict[str, obje
         })
 
     direction, dominance = _direction(total_buy, total_sell)
+
+    price_change_ticks = ordered[-1].price_ticks - ordered[0].price_ticks
+    price_direction = "ALTA" if price_change_ticks > 0 else "BAIXA" if price_change_ticks < 0 else "NEUTRO"
+    if known_total <= 0:
+        price_flow_relation = "DADOS_INSUFICIENTES"
+    elif price_direction == "NEUTRO":
+        price_flow_relation = "PRECO_NEUTRO"
+    elif direction == "EQUILIBRADA":
+        price_flow_relation = "FLUXO_EQUILIBRADO"
+    elif (price_direction == "ALTA" and direction == "COMPRA") or (price_direction == "BAIXA" and direction == "VENDA"):
+        price_flow_relation = "ALINHADO"
+    elif direction in {"COMPRA", "VENDA"}:
+        price_flow_relation = "DIVERGENTE"
+    else:
+        price_flow_relation = "DADOS_INSUFICIENTES"
+
+    coverage = known_total / total_volume if total_volume else 0.0
+    if price_flow_relation == "DIVERGENTE":
+        if coverage >= 0.70 and (dominance or 0.0) >= 0.20:
+            study_priority = "ALTA"
+        elif coverage >= 0.50:
+            study_priority = "MODERADA"
+        else:
+            study_priority = "BAIXA"
+    else:
+        study_priority = "NORMAL"
+
     strongest = sorted(
         [row for row in rows if int(row["directed_aggression"]) > 0],
         key=lambda row: (-int(row["directed_aggression"]), -abs(int(row["delta"])), -int(row["volume"])),
@@ -255,12 +287,27 @@ def aggression_analysis(trades: list[Trade], tick_size: float) -> dict[str, obje
         ),
         "summary": {
             "total_volume": total_volume,
+            "total_trades": len(ordered),
             "buy_aggression": total_buy,
             "sell_aggression": total_sell,
             "directed_aggression": known_total,
             "rlp_volume": total_rlp,
             "unknown_volume": total_unknown,
-            "aggressor_coverage": (known_total / total_volume if total_volume else 0.0),
+            "buy_trades": buy_trades,
+            "sell_trades": sell_trades,
+            "rlp_trades": rlp_trades,
+            "unknown_trades": unknown_trades,
+            "buy_share_total_volume": (total_buy / total_volume if total_volume else 0.0),
+            "sell_share_total_volume": (total_sell / total_volume if total_volume else 0.0),
+            "rlp_share_total_volume": (total_rlp / total_volume if total_volume else 0.0),
+            "unknown_share_total_volume": (total_unknown / total_volume if total_volume else 0.0),
+            "buy_share_directed": (total_buy / known_total if known_total else 0.0),
+            "sell_share_directed": (total_sell / known_total if known_total else 0.0),
+            "buy_share_trades": (buy_trades / len(ordered) if ordered else 0.0),
+            "sell_share_trades": (sell_trades / len(ordered) if ordered else 0.0),
+            "rlp_share_trades": (rlp_trades / len(ordered) if ordered else 0.0),
+            "unknown_share_trades": (unknown_trades / len(ordered) if ordered else 0.0),
+            "aggressor_coverage": coverage,
             "aggression_data_available": known_total > 0,
             "identified_aggressor_volume": identified_buy_qty + identified_sell_qty,
             "agent_identity_coverage": (
@@ -269,6 +316,10 @@ def aggression_analysis(trades: list[Trade], tick_size: float) -> dict[str, obje
             "delta": total_buy - total_sell,
             "direction": direction,
             "dominance": dominance,
+            "price_direction": price_direction,
+            "price_change_ticks": price_change_ticks,
+            "price_flow_relation": price_flow_relation,
+            "study_priority": study_priority,
             "levels": len(rows),
         },
         "top_buy_aggressors": _top_agents(
