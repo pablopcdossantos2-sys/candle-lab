@@ -226,3 +226,28 @@ O gráfico diário vem do CSV OHLC. A Biblioteca de microestrutura só recebe da
 ### Posso usar o arquivo de 726 MB novamente?
 
 Sim. Ele funciona como fonte permanente. Você pode criar quantos recortes quiser sem modificá-lo.
+
+
+## Recortes sobrepostos
+
+Você pode estudar intervalos que se sobreponham.
+
+Exemplo:
+
+```text
+primeiro recorte: 14:40–14:50
+segundo recorte: 14:45–15:00
+```
+
+O Candle Lab identifica cada ocorrência pela impressão digital rápida da fonte original e pela posição da linha no CSV grande. Os negócios de 14:45–14:50 já existentes não são inseridos novamente.
+
+## Vários recortes separados no mesmo dia
+
+Também é permitido estudar, por exemplo:
+
+```text
+10:00–10:10
+14:40–14:50
+```
+
+A reconciliação seletiva compara apenas os candles efetivamente importados. O período intermediário não é tratado como erro ou `NO_DATA`, pois sua ausência foi intencional.
