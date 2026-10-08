@@ -1,3 +1,3 @@
 """Candle Lab B3 — laboratório de formação intrabar."""
 
-__version__ = "0.15.0"
+__version__ = "0.16.0"
