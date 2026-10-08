@@ -2,7 +2,7 @@
 
 **Laboratório local para investigar como candles de futuros da B3 são formados negócio a negócio.**
 
-Versão atual: **0.11.0**
+Versão atual: **0.12.0**
 
 O Candle Lab B3 nasceu de uma pergunta simples: **dois candles visualmente parecidos necessariamente foram formados da mesma maneira?**
 
@@ -204,7 +204,37 @@ Para usuários comuns, basta dar dois cliques em:
 
 Veja `docs/TUTORIAL-VALIDACAO-PREGAO-COMPLETO.md`.
 
-### 13. Caminhos contrafactuais
+### 13. Visão geral → recorte seletivo → microestrutura — v0.12
+
+A v0.12 muda o fluxo recomendado para evitar armazenar pregões inteiros de Tick by Tick quando o usuário deseja investigar apenas alguns candles.
+
+O fluxo padrão passa a ser:
+
+```text
+CSV leve de candles de 1 ou 2 minutos
+        ↓
+gráfico do pregão inteiro
+        ↓
+seleção visual de um intervalo
+        ↓
+CSV grande de Trades permanece no disco original
+        ↓
+extração streaming somente do intervalo escolhido
+        ↓
+pequeno recorte em data/slices
+        ↓
+replay + DNA + volume por preço + pesquisa
+```
+
+O usuário seleciona o trecho diretamente no gráfico diário arrastando o mouse. Depois cola o caminho do CSV grande do Profit. O Candle Lab percorre esse arquivo sem copiá-lo integralmente para sua biblioteca.
+
+O intervalo é tratado como `[início, fim)`, evitando incluir por engano negócios do candle seguinte.
+
+A ingestão integral da v0.11 continua disponível para auditorias específicas, mas deixou de ser a opção recomendada para o uso cotidiano.
+
+Veja `docs/TUTORIAL-FLUXO-SELETIVO.md`.
+
+### 14. Caminhos contrafactuais
 
 O programa também pode criar uma trajetória diferente que preserve o mesmo OHLC.
 
@@ -289,9 +319,21 @@ Depois de carregar a amostra:
 
 ---
 
-# Como usar seus próprios dados
+# Como usar seus próprios dados — fluxo recomendado
 
-A aplicação foi projetada para trabalhar com trades exportados para CSV.
+A v0.12 separa a **visão geral do dia** da **microestrutura detalhada**.
+
+1. Exporte do Profit o gráfico do dia em candles de 1 ou 2 minutos.
+2. Importe esse CSV na área **Importar gráfico diário**.
+3. No gráfico completo, arraste o mouse sobre os candles que deseja estudar.
+4. Mantenha o CSV grande de Trades no local original do seu computador.
+5. Use **Copiar como caminho** no Windows e cole esse caminho no Candle Lab.
+6. Clique em **Recortar e importar intervalo**.
+7. Abra os candles do recorte na Biblioteca de microestrutura.
+
+O Candle Lab gera apenas um pequeno arquivo em `data/slices`. Você pode apagá-lo depois e recriá-lo a qualquer momento a partir do CSV original.
+
+A importação integral de um pregão continua disponível como ferramenta avançada, mas não é necessária para a análise normal.
 
 ## Exemplo com WIN
 
@@ -322,7 +364,11 @@ Isso evita misturar vencimentos diferentes sem uma regra explícita de rollover.
 Por padrão:
 
 - banco local: `data/candle_lab.duckdb`;
-- snapshot dos negócios: `data/parquet/trades.parquet`.
+- recortes seletivos: `data/slices/*.csv`;
+- Parquet de auditorias integrais, quando usados: `data/parquet/<CONTRATO>/<DATA>.parquet`;
+- relatórios: `data/reports`.
+
+O CSV grande original de Trades pode permanecer fora da pasta do projeto.
 
 Os CSVs importados **não são modificados**.
 
@@ -382,7 +428,15 @@ candle-lab import sample_data\nelogica_tick_exemplo.csv --tick-size 5 --source p
 candle-lab reconcile sample_data\nelogica_tick_exemplo.csv sample_data\reference_exemplo_1m.csv --symbol WINEXEMPLO --tick-size 5 --interval 60
 ```
 
-### Validação de um pregão completo com arquivo grande
+### Gerar um recorte seletivo pela linha de comando
+
+A interface gráfica é o modo recomendado. Para automação:
+
+```powershell
+candle-lab slice-trades "C:\Dados\WINV26_TRADES.csv" --symbol WINV26 --start "2026-10-07T14:40:00-03:00" --end "2026-10-07T14:50:00-03:00"
+```
+
+### Validação de um pregão completo com arquivo grande — modo avançado
 
 A v0.11 possui um comando que importa em chunks e retoma automaticamente em caso de interrupção:
 
@@ -489,7 +543,8 @@ Para aprofundar o projeto:
 - `docs/ESTABILIDADE-TRANSICOES.md` — estabilidade e sequências v0.9;
 - `docs/VALIDACAO-V08.md` — validação funcional da camada de trajetórias;
 - `docs/VALIDACAO-EMPIRICA-V010.md` — primeira validação com dados reais do WINV26;
-- `docs/TUTORIAL-VALIDACAO-PREGAO-COMPLETO.md` — passo a passo para processar CSVs grandes no Windows.
+- `docs/TUTORIAL-FLUXO-SELETIVO.md` — fluxo recomendado: gráfico diário, seleção e recorte Tick;
+- `docs/TUTORIAL-VALIDACAO-PREGAO-COMPLETO.md` — auditoria opcional do pregão inteiro.
 
 ---
 
@@ -504,7 +559,9 @@ O projeto ainda está em desenvolvimento. Entre as limitações conhecidas:
 - frequências de transição descrevem a biblioteca atual e não devem ser interpretadas como previsão;
 - dados sintéticos demonstram funcionamento do pipeline, não validam comportamento real do WIN/WDO;
 - a v0.10 foi validada em um recorte real de 10 minutos do WINV26;
-- a v0.11 introduz ingestão em chunks para o arquivo completo; análises avançadas de famílias sobre milhões de trades ainda serão gradualmente migradas para execução SQL/streaming.
+- a v0.11 mantém ingestão integral em chunks como ferramenta de auditoria;
+- a v0.12 passa a recomendar recortes seletivos e não exige armazenar um pregão Tick inteiro;
+- a extração seletiva atual foi desenhada para o layout real sem cabeçalho do Profit já validado pelo projeto.
 
 ---
 
