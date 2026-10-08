@@ -30,3 +30,7 @@
 .intensity-sem_agressao_direcionada{background:#151d24}
 .aggr-extrema td:first-child{box-shadow:inset 4px 0 0 #f47f8d}
 .aggr-alta td:first-child{box-shadow:inset 4px 0 0 #f0b966}
+
+.aggression-wave-panel{margin-top:18px;padding-top:14px;border-top:1px solid #24384b}
+.aggression-wave-panel .expost-hidden{color:#8fa1b5;font-style:italic}
+.aggression-wave-panel table small{color:#8fa1b5}
