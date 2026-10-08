@@ -1,6 +1,6 @@
 # Tutorial — localizar as linhas dos candles no CSV grande
 
-Este tutorial cobre a v0.13 do Candle Lab.
+Este tutorial cobre a v0.14 do Candle Lab.
 
 ## 1. Importe o gráfico diário
 
@@ -8,7 +8,14 @@ Use o CSV de 1 ou 2 minutos exportado do Profit. O Candle Lab exibirá o pregão
 
 ## 2. Selecione os candles
 
-No gráfico, arraste o mouse do primeiro ao último candle desejado. Exemplo: 14:40 até 14:50.
+Você pode:
+
+- clicar e arrastar;
+- aumentar o zoom e mover a janela do gráfico;
+- arrastar os marcadores **INÍCIO** e **FIM**;
+- digitar diretamente os horários nos campos **Início** e **Fim**.
+
+Exemplo: digite `14:40` e `14:50`, clique em **Aplicar horários** e, se desejar, use **Zoom na seleção** para conferir os limites.
 
 ## 3. Cole o caminho do CSV Tick by Tick
 
