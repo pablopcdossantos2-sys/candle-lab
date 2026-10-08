@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.14.2 — 2026-10-07
+- corrige preços do Profit com ponto como separador de milhar, por exemplo `205.935` → `205935`;
+- mantém a interpretação decimal genérica separada da regra específica do Profit;
+- amplia a detecção de arquivos de Trades com cabeçalho do Profit;
+- recortes seletivos usam a mesma normalização numérica específica da fonte;
+- indexação temporal passa a reportar progresso por bytes efetivamente lidos;
+- interface mostra porcentagem, linhas processadas, bytes/MB lidos e minutos indexados;
+- construção do índice roda como tarefa local e a interface consulta o progresso até a conclusão;
+- quando o índice já existe, a interface informa que nenhuma nova leitura integral foi necessária;
+- testes automatizados cobrem o preço `205.935`, progresso final em 100% e contrato da interface.
+
+
 ## 0.14.1 — 2026-10-07
 - localizador seletivo deixa de exigir exclusivamente o layout sem cabeçalho de 8 colunas;
 - suporte a arquivos de Trades com cabeçalho reconhecível;
