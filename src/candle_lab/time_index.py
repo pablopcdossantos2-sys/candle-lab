@@ -12,7 +12,7 @@ from .importers import _parse_datetime
 from .slice import _probe, source_fingerprint
 
 
-INDEX_VERSION = "1.0"
+INDEX_VERSION = "1.1"
 INDEX_GRANULARITY_SECONDS = 60
 
 
@@ -45,6 +45,9 @@ class TimeIndex:
     encoding: str
     delimiter: str
     granularity_seconds: int
+    layout_profile: str
+    source_has_header: bool
+    source_header_line: int
     rows: int
     first_timestamp: str
     last_timestamp: str
@@ -96,9 +99,11 @@ def build_time_index(
     if source.suffix.lower() != ".csv":
         raise ValueError("O arquivo de Trades precisa possuir extensão .csv")
 
-    encoding, dialect, file_symbol, source_order = _probe(source)
+    probe = _probe(source, symbol=symbol)
+    encoding, dialect = probe.encoding, probe.dialect
+    layout, source_order, file_symbol = probe.layout, probe.source_order, probe.symbol
     symbol_used = (symbol or file_symbol).strip().upper()
-    if symbol_used != file_symbol:
+    if file_symbol and symbol_used != file_symbol:
         raise ValueError(f"Ativo informado ({symbol_used}) difere do arquivo ({file_symbol})")
 
     fingerprint = source_fingerprint(source)
@@ -112,6 +117,7 @@ def build_time_index(
     first_ts: datetime | None = None
     last_ts: datetime | None = None
 
+    physical_line = 0
     with source.open("rb") as handle:
         while True:
             byte_start = handle.tell()
@@ -120,6 +126,7 @@ def build_time_index(
                 break
             byte_end = handle.tell()
             digest.update(raw)
+            physical_line += 1
 
             decoded = raw.decode(encoding).rstrip("\r\n")
             if not decoded.strip():
@@ -127,14 +134,20 @@ def build_time_index(
             row = next(csv.reader([decoded], dialect=dialect))
             if not row or not any(cell.strip() for cell in row):
                 continue
-            rows += 1
-            if len(row) != 8:
-                raise ValueError(f"Linha {rows}: esperado layout Profit de 8 colunas; recebido={len(row)}")
+            if physical_line < layout.data_start_line:
+                continue
+            if layout.has_header and physical_line == layout.header_line:
+                continue
 
-            row_symbol = row[0].strip().upper()
+            try:
+                ts = layout.timestamp(row)
+            except (ValueError, IndexError) as exc:
+                raise ValueError(f"Linha física {physical_line}: data/hora inválida: {exc}") from exc
+
+            row_symbol = layout.symbol(row) or symbol_used
             if row_symbol != symbol_used:
-                raise ValueError(f"Linha {rows}: ativo {row_symbol} difere de {symbol_used}")
-            ts = _parse_datetime(None, row[1], row[2])
+                raise ValueError(f"Linha física {physical_line}: ativo {row_symbol} difere de {symbol_used}")
+            rows += 1
             if first_ts is None or ts < first_ts:
                 first_ts = ts
             if last_ts is None or ts > last_ts:
@@ -147,8 +160,8 @@ def build_time_index(
                 buckets[key] = {
                     "start": key,
                     "end": (bucket_start + timedelta(minutes=1)).isoformat(),
-                    "first_source_row": rows,
-                    "last_source_row": rows,
+                    "first_source_row": physical_line,
+                    "last_source_row": physical_line,
                     "byte_start": byte_start,
                     "byte_end": byte_end,
                     "trades": 1,
@@ -156,7 +169,7 @@ def build_time_index(
                     "last_physical_timestamp": ts.isoformat(),
                 }
             else:
-                item["last_source_row"] = rows
+                item["last_source_row"] = physical_line
                 item["byte_end"] = byte_end
                 item["trades"] = int(item["trades"]) + 1
                 item["last_physical_timestamp"] = ts.isoformat()
@@ -195,6 +208,9 @@ def build_time_index(
         encoding=encoding,
         delimiter=dialect.delimiter,
         granularity_seconds=INDEX_GRANULARITY_SECONDS,
+        layout_profile=layout.profile,
+        source_has_header=layout.has_header,
+        source_header_line=layout.header_line,
         rows=rows,
         first_timestamp=first_ts.isoformat(),
         last_timestamp=last_ts.isoformat(),
@@ -331,4 +347,7 @@ def index_summary(index: TimeIndex) -> dict[str, object]:
         "first_timestamp": index.first_timestamp,
         "last_timestamp": index.last_timestamp,
         "granularity_seconds": index.granularity_seconds,
+        "layout_profile": index.layout_profile,
+        "source_has_header": index.source_has_header,
+        "source_header_line": index.source_header_line,
     }
