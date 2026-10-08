@@ -31,7 +31,7 @@ STATIC_DIR=PACKAGE_DIR/"static"
 PROJECT_ROOT=Path(__file__).resolve().parents[3]
 DEFAULT_DB=Path(os.environ.get("CANDLE_LAB_DB",PROJECT_ROOT/"data"/"candle_lab.duckdb"))
 DEFAULT_PARQUET=Path(os.environ.get("CANDLE_LAB_PARQUET",PROJECT_ROOT/"data"/"parquet"/"trades.parquet"))
-VERSION="0.16.0"
+VERSION="0.17.0"
 
 
 class TimeIndexRequest(BaseModel):
