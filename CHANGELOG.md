@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.15.0 — 2026-10-08
+- adiciona análise de agressão executada por nível de preço;
+- identifica principais agentes compradores e vendedores agressores no candle e em cada preço;
+- calcula BUY, SELL, delta, dominância, cobertura do agressor e cobertura de identidade do agente;
+- classifica intensidade da agressão como BAIXA, MODERADA, ALTA ou EXTREMA em relação ao próprio candle;
+- preserva RLP e agressão indefinida separadamente;
+- adiciona heurísticas descritivas de `IMPULSO_COMPATIVEL`, `POSSIVEL_ABSORCAO`, `PRESSAO_SEM_CONFIRMACAO` e `SEM_JANELA_POS_AGRESSAO`;
+- adiciona painel `Mapa de agressão por preço` ao Laboratório do candle;
+- adiciona rankings gerais de principais agressores;
+- documenta limitações: Times & Trades não substitui livro MBO/MBP e não prova causalidade;
+- adiciona testes para atribuição do agente agressor, intensidade, RLP e proteção contra falsa absorção no fim do candle.
+
+
 ## 0.14.4 — 2026-10-07
 - corrige `Parameter argument/count mismatch` ao gravar `session_quality` no DuckDB;
 - `INSERT` de qualidade passa a declarar explicitamente todas as colunas;
