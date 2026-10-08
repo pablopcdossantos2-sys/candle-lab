@@ -284,6 +284,45 @@ def interpret_candle(
         },
     })
 
+    observed.append({
+        "code": "COMPOSICAO_AGRESSAO",
+        "text": (
+            f"Do volume total do candle, {_pct(float(summary.get('buy_share_total_volume') or 0.0))} veio de "
+            f"agressão compradora reconhecida, {_pct(float(summary.get('sell_share_total_volume') or 0.0))} de "
+            f"agressão vendedora, {_pct(float(summary.get('rlp_share_total_volume') or 0.0))} de RLP e "
+            f"{_pct(float(summary.get('unknown_share_total_volume') or 0.0))} permaneceu sem classificação direcional. "
+            f"Entre apenas as agressões BUY/SELL conhecidas, a divisão foi "
+            f"{_pct(float(summary.get('buy_share_directed') or 0.0))} compra e "
+            f"{_pct(float(summary.get('sell_share_directed') or 0.0))} venda."
+        ),
+        "data": {
+            "buy_share_total_volume": summary.get("buy_share_total_volume"),
+            "sell_share_total_volume": summary.get("sell_share_total_volume"),
+            "rlp_share_total_volume": summary.get("rlp_share_total_volume"),
+            "unknown_share_total_volume": summary.get("unknown_share_total_volume"),
+            "buy_share_directed": summary.get("buy_share_directed"),
+            "sell_share_directed": summary.get("sell_share_directed"),
+        },
+    })
+
+    if summary.get("price_flow_relation") == "DIVERGENTE":
+        observed.append({
+            "code": "DIVERGENCIA_PRECO_FLUXO",
+            "text": (
+                f"O candle foi de {str(summary.get('price_direction')).lower()}, enquanto o fluxo agressor "
+                f"direcionado predominante foi de {str(summary.get('direction')).lower()}. "
+                f"Esta divergência foi marcada para estudo com prioridade {str(summary.get('study_priority')).lower()}. "
+                "Ela não é, por si só, erro de dado nem prova de absorção: a sequência dos negócios, os níveis de preço, "
+                "as revisitas e a resposta posterior precisam ser examinados."
+            ),
+            "data": {
+                "price_direction": summary.get("price_direction"),
+                "flow_direction": summary.get("direction"),
+                "relation": summary.get("price_flow_relation"),
+                "study_priority": summary.get("study_priority"),
+            },
+        })
+
     strongest = list(aggression.get("strongest_levels") or [])
     if strongest:
         observed.append({
