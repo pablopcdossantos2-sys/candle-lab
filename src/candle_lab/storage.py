@@ -104,6 +104,31 @@ class MarketStore:
                 inserted+=1
         return {"received":len(trades),"inserted":inserted,"duplicates":len(trades)-inserted}
 
+    def add_selected_slice_trades(
+        self,trades:Iterable[Trade],*,tick_size:float,source_fingerprint:str,source_rows:Iterable[int]
+    )->dict[str,int]:
+        trades=list(trades);rows=list(source_rows)
+        if len(trades)!=len(rows):
+            raise ValueError("Quantidade de trades e posições da fonte não coincide")
+        if not trades:return {"received":0,"inserted":0,"duplicates":0}
+        symbols={t.symbol for t in trades}
+        if len(symbols)!=1:raise ValueError("Importe um contrato por vez")
+        self.upsert_instrument(trades[0].symbol,tick_size)
+        inserted=0
+        with self.connect() as con:
+            for t,source_row in zip(trades,rows):
+                key=hashlib.sha256(f"{source_fingerprint}:{source_row}".encode()).hexdigest()
+                exists=con.execute("SELECT 1 FROM trades WHERE event_key=?",[key]).fetchone()
+                if exists:continue
+                con.execute("""INSERT INTO trades(
+                    event_key,symbol,ts,session_date,price_ticks,quantity,trade_id,aggressor,source,
+                    buyer_id,seller_id,sequence_no,flags,source_file_hash,source_row
+                ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",[
+                    key,t.symbol,t.ts,t.ts.date(),t.price_ticks,t.quantity,t.trade_id,t.aggressor.value,t.source,
+                    t.buyer_id,t.seller_id,t.sequence_no,t.flags,source_fingerprint,int(source_row)])
+                inserted+=1
+        return {"received":len(trades),"inserted":inserted,"duplicates":len(trades)-inserted}
+
     def add_reference_candles(self,references:Iterable[ReferenceCandle],*,tick_size:float)->dict[str,int]:
         refs=list(references)
         if not refs:return {"received":0,"inserted":0,"duplicates":0}
