@@ -2,7 +2,7 @@
 
 **Laboratório local para investigar como candles de futuros da B3 são formados negócio a negócio.**
 
-Versão atual: **0.16.0**
+Versão atual: **0.17.0**
 
 O Candle Lab B3 nasceu de uma pergunta simples: **dois candles visualmente parecidos necessariamente foram formados da mesma maneira?**
 
@@ -725,3 +725,32 @@ A detecção usa apenas negócios já ocorridos até o instante do evento. A rea
 No replay, os marcadores `T1`, `T2`, ... só aparecem depois que o término foi confirmado. A coluna de resultado posterior permanece oculta até o fim do replay.
 
 Veja `docs/TERMINO-ONDAS-AGRESSAO.md`.
+
+
+## Relatório interpretativo do candle — v0.17.0
+
+A v0.17 transforma a microestrutura observada em uma leitura textual auditável do candle fechado.
+
+O relatório separa explicitamente:
+
+- **evidências observadas** — OHLC, delta, cobertura, níveis agredidos, agentes e ondas;
+- **descrição cronológica** — início, miolo e fase final da formação;
+- **hipóteses explicativas** — interpretações compatíveis com o fluxo observado;
+- **síntese do fechamento** — as hipóteses com maior suporte;
+- **limitações** — fatores que reduzem a força da interpretação.
+
+Entre as hipóteses iniciais estão:
+
+- agressão alinhada ao fechamento de alta/baixa;
+- alta com delta vendedor ou baixa com delta comprador, compatíveis com absorção/incapacidade do agressor;
+- perda de eficiência compradora próxima da máxima;
+- perda de eficiência vendedora próxima da mínima;
+- onda agressora ainda aberta no fechamento;
+- disputa bilateral;
+- mudança de controle agressor ao longo do candle.
+
+O relatório possui score de evidência e score por hipótese. **Esses scores não são probabilidades estatísticas**; medem apenas a coerência interna das evidências usadas pelo modelo atual.
+
+Durante o replay, o relatório pós-fechamento fica oculto e só reaparece quando o candle termina.
+
+Veja `docs/RELATORIO-INTERPRETATIVO-CANDLE.md`.
