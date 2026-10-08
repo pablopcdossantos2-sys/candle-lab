@@ -385,7 +385,11 @@ $('dayCanvas').addEventListener('mousedown',e=>{
   state.dragStart=dayIndexFromEvent(e);state.dragCurrent=state.dragStart;updateSelectionUI();drawDayChart();
 });
 $('dayCanvas').addEventListener('mousemove',e=>{
-  if(!state.dragMode||e.buttons!==1)return;
+  if(!state.dragMode||e.buttons!==1){
+    $('dayCanvas').style.cursor=markerHitFromEvent(e)?'ew-resize':'crosshair';
+    return;
+  }
+  $('dayCanvas').style.cursor=state.dragMode==='new'?'crosshair':'ew-resize';
   if(state.dragMode==='new'){
     state.dragCurrent=dayIndexFromEvent(e);drawDayChart();return;
   }
@@ -398,9 +402,10 @@ $('dayCanvas').addEventListener('mousemove',e=>{
     setSelectionIndices(state.selection.startIndex,endBoundary-1,{keepOrder:true});
   }
 });
-$('dayCanvas').addEventListener('mouseup',()=>{
+$('dayCanvas').addEventListener('mouseup',e=>{
   if(state.dragMode==='new')finalizeSelection();
   state.dragMode=null;
+  $('dayCanvas').style.cursor=markerHitFromEvent(e)?'ew-resize':'crosshair';
 });
 $('dayCanvas').addEventListener('mouseleave',e=>{
   if(state.dragMode==='new'&&e.buttons===1)finalizeSelection();
