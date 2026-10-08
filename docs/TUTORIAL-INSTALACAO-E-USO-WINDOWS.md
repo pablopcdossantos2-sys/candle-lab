@@ -304,6 +304,21 @@ Depois de conferir a tabela, clique em:
 Recortar e importar intervalo localizado
 ~~~
 
+A partir da v0.14.3, essa etapa possui uma **segunda barra de progresso**, independente da barra usada para construir o índice.
+
+Ela informa a porcentagem geral e a fase atual, por exemplo:
+
+~~~text
+15,0%  Localizando os bytes exatos do intervalo
+42,7%  Extraindo · 5,3 MB de 12,4 MB · 48.320 negócios
+80,0%  Normalizando e validando os negócios
+90,0%  Gravando o recorte na biblioteca local
+96,0%  Atualizando metadados e mapa de candles
+100,0% Recorte criado, validado e importado
+~~~
+
+Durante a fase de extração, o avanço é calculado pelos **bytes realmente lidos da faixa selecionada**. As fases seguintes avançam quando cada etapa efetivamente é concluída.
+
 O Candle Lab usa os offsets do índice para saltar diretamente à região necessária do CSV grande.
 
 O pequeno arquivo derivado fica em:
