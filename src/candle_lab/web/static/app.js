@@ -2,7 +2,8 @@ const $=id=>document.getElementById(id);
 const state={
   symbols:[],sessions:[],candles:[],detail:null,replay:0,timer:null,selected:null,
   overview:[],overviewSessions:[],overviewCandles:[],overviewMeta:null,
-  dragStart:null,dragCurrent:null,selection:null,indexLocation:null
+  dragStart:null,dragCurrent:null,dragMode:null,selection:null,indexLocation:null,
+  zoom:1,viewStart:0
 };
 
 async function api(url,opts={}){
@@ -15,6 +16,7 @@ const n=(v,d=2)=>Number(v||0).toLocaleString('pt-BR',{maximumFractionDigits:d});
 const pct=v=>n((v||0)*100,1)+'%';
 const clock=iso=>new Date(iso).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
 const shortClock=iso=>new Date(iso).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+const isoTime=iso=>String(iso||'').slice(11,16);
 
 function draw(canvas,values,count){
   const ctx=canvas.getContext('2d'),w=canvas.width,h=canvas.height;ctx.clearRect(0,0,w,h);
@@ -24,71 +26,267 @@ function draw(canvas,values,count){
   nums.forEach((v,i)=>{const x=18+(w-36)*(i/Math.max(nums.length-1,1)),y=h-18-(h-36)*((v-lo)/span);if(i)ctx.lineTo(x,y);else ctx.moveTo(x,y)});ctx.stroke();
 }
 
-function drawDayChart(){
-  const canvas=$('dayCanvas'),ctx=canvas.getContext('2d'),w=canvas.width,h=canvas.height;
-  ctx.clearRect(0,0,w,h);
-  const candles=state.overviewCandles;
-  if(!candles.length)return;
-  const left=66,right=20,top=20,bottom=42,plotW=w-left-right,plotH=h-top-bottom;
-  const lo=Math.min(...candles.map(c=>c.low)),hi=Math.max(...candles.map(c=>c.high)),span=hi-lo||1;
-  const y=p=>top+plotH-(p-lo)/span*plotH;
-  const step=plotW/candles.length;
-  const bodyW=Math.max(1,Math.min(7,step*.62));
+function chartGeometry(){
+  const canvas=$('dayCanvas');
+  return {canvas,left:72,right:24,top:34,bottom:62,w:canvas.width,h:canvas.height};
+}
 
-  ctx.strokeStyle='#183048';ctx.lineWidth=1;ctx.fillStyle='#8298ad';ctx.font='11px Segoe UI';
-  for(let i=0;i<=5;i++){
-    const yy=top+plotH*i/5,price=hi-span*i/5;
-    ctx.beginPath();ctx.moveTo(left,yy);ctx.lineTo(w-right,yy);ctx.stroke();
-    ctx.fillText(n(price,2),4,yy+4);
-  }
+function visibleWindow(){
+  const total=state.overviewCandles.length;
+  if(!total)return {start:0,end:0,count:0,total:0};
+  const zoom=Math.max(1,Math.min(12,Number(state.zoom)||1));
+  const count=Math.min(total,Math.max(10,Math.ceil(total/zoom)));
+  const maxStart=Math.max(0,total-count);
+  state.viewStart=Math.max(0,Math.min(maxStart,Math.round(state.viewStart||0)));
+  return {start:state.viewStart,end:Math.min(total,state.viewStart+count),count,total};
+}
 
-  const labelEvery=Math.max(1,Math.ceil(candles.length/10));
-  candles.forEach((c,i)=>{
-    const x=left+step*(i+.5);
-    const up=c.close>=c.open;
-    ctx.strokeStyle=up?'#63d7ae':'#f47f8d';
-    ctx.fillStyle=ctx.strokeStyle;
-    ctx.beginPath();ctx.moveTo(x,y(c.high));ctx.lineTo(x,y(c.low));ctx.stroke();
-    const yo=y(c.open),yc=y(c.close),bh=Math.max(1,Math.abs(yc-yo));
-    ctx.fillRect(x-bodyW/2,Math.min(yo,yc),bodyW,bh);
-    if(i%labelEvery===0){
-      ctx.fillStyle='#71869a';ctx.fillText(shortClock(c.start),Math.max(left,x-18),h-14);
-    }
-  });
+function xForBoundary(globalBoundary,windowInfo=null){
+  const win=windowInfo||visibleWindow(),g=chartGeometry();
+  if(!win.count)return g.left;
+  const plotW=g.w-g.left-g.right;
+  return g.left+plotW*((globalBoundary-win.start)/win.count);
+}
 
-  if(state.dragStart!=null){
-    const a=Math.min(state.dragStart,state.dragCurrent==null?state.dragStart:state.dragCurrent);
-    const b=Math.max(state.dragStart,state.dragCurrent==null?state.dragStart:state.dragCurrent);
-    const x1=left+step*a,x2=left+step*(b+1);
-    ctx.fillStyle='rgba(93,181,255,.13)';ctx.fillRect(x1,top,x2-x1,plotH);
-    ctx.strokeStyle='#5db5ff';ctx.lineWidth=2;ctx.strokeRect(x1,top,x2-x1,plotH);
-  }
+function markerBoundaryFromEvent(e){
+  const g=chartGeometry(),rect=g.canvas.getBoundingClientRect(),win=visibleWindow();
+  if(!win.count)return 0;
+  const x=(e.clientX-rect.left)*(g.canvas.width/rect.width);
+  const plotW=g.w-g.left-g.right;
+  const local=Math.round((x-g.left)/(plotW/win.count));
+  return Math.max(win.start,Math.min(win.end,win.start+local));
 }
 
 function dayIndexFromEvent(e){
-  const canvas=$('dayCanvas'),rect=canvas.getBoundingClientRect();
-  const x=(e.clientX-rect.left)*(canvas.width/rect.width);
-  const left=66,right=20,plotW=canvas.width-left-right;
-  const idx=Math.floor((x-left)/(plotW/Math.max(state.overviewCandles.length,1)));
-  return Math.max(0,Math.min(state.overviewCandles.length-1,idx));
+  const g=chartGeometry(),rect=g.canvas.getBoundingClientRect(),win=visibleWindow();
+  if(!win.count)return 0;
+  const x=(e.clientX-rect.left)*(g.canvas.width/rect.width);
+  const plotW=g.w-g.left-g.right;
+  const local=Math.floor((x-g.left)/(plotW/win.count));
+  return Math.max(win.start,Math.min(win.end-1,win.start+local));
+}
+
+function invalidateLocatedSlice(){
+  state.indexLocation=null;
+  $('sliceBtn').disabled=true;
+  $('lineMapWrap').classList.add('hidden');
+  $('sliceResult').textContent='Prepare primeiro o índice temporal para esta seleção.';
+}
+
+function updateSelectionUI(){
+  if(!state.selection){
+    $('selectionInfo').classList.add('hidden');
+    $('startTimeInput').value='';
+    $('endTimeInput').value='';
+    $('zoomSelectionBtn').disabled=true;
+    $('locateBtn').disabled=true;
+    return;
+  }
+  const first=state.overviewCandles[state.selection.startIndex];
+  const last=state.overviewCandles[state.selection.endIndex];
+  state.selection.start=first.start;
+  state.selection.end=last.end;
+  state.selection.count=state.selection.endIndex-state.selection.startIndex+1;
+  $('selectionLabel').textContent=clock(first.start)+' → '+clock(last.end);
+  $('selectionCount').textContent=String(state.selection.count);
+  $('startTimeInput').value=isoTime(first.start);
+  $('endTimeInput').value=isoTime(last.end);
+  $('selectionInfo').classList.remove('hidden');
+  $('zoomSelectionBtn').disabled=false;
+  $('locateBtn').disabled=false;
+}
+
+function setSelectionIndices(startIndex,endIndex,{invalidate=true,keepOrder=false}={}){
+  const total=state.overviewCandles.length;
+  if(!total)return;
+  let a=Math.max(0,Math.min(total-1,Math.round(startIndex)));
+  let b=Math.max(0,Math.min(total-1,Math.round(endIndex)));
+  if(!keepOrder&&a>b)[a,b]=[b,a];
+  if(keepOrder&&a>b)return;
+  state.selection={startIndex:a,endIndex:b,start:null,end:null,count:b-a+1};
+  state.dragStart=a;state.dragCurrent=b;
+  if(invalidate)invalidateLocatedSlice();
+  $('timeSelectionError').classList.add('hidden');
+  updateSelectionUI();
+  drawDayChart();
+}
+
+function clearSelection(){
+  state.dragStart=null;state.dragCurrent=null;state.dragMode=null;state.selection=null;state.indexLocation=null;
+  $('selectionInfo').classList.add('hidden');$('locateBtn').disabled=true;$('sliceBtn').disabled=true;
+  $('zoomSelectionBtn').disabled=true;$('lineMapWrap').classList.add('hidden');
+  $('startTimeInput').value='';$('endTimeInput').value='';
+  $('timeSelectionError').classList.add('hidden');
+  $('indexResult').textContent='Selecione primeiro um intervalo no gráfico.';
+  $('sliceResult').textContent='Prepare primeiro o índice temporal.';
+  drawDayChart();
+}
+
+function updateZoomStatus(){
+  const win=visibleWindow();
+  if(!win.count){$('zoomStatus').textContent='Sem dados';return}
+  const first=state.overviewCandles[win.start],last=state.overviewCandles[win.end-1];
+  $('zoomStatus').textContent=(state.zoom===1?'Dia inteiro':'Zoom '+state.zoom+'×')+
+    ' · '+win.count+' candles visíveis · '+isoTime(first.start)+'–'+isoTime(last.end);
+}
+
+function setZoom(value,centerIndex=null){
+  const total=state.overviewCandles.length;if(!total)return;
+  const old=visibleWindow();
+  const center=centerIndex==null?(old.start+(old.count-1)/2):centerIndex;
+  state.zoom=Math.max(1,Math.min(12,Math.round(Number(value)||1)));
+  $('zoomRange').value=String(state.zoom);
+  const count=Math.min(total,Math.max(10,Math.ceil(total/state.zoom)));
+  state.viewStart=Math.round(center-count/2);
+  visibleWindow();
+  updateZoomStatus();drawDayChart();
+}
+
+function panChart(direction){
+  const win=visibleWindow();if(!win.count)return;
+  state.viewStart+=Math.round(win.count*.45)*direction;
+  visibleWindow();updateZoomStatus();drawDayChart();
+}
+
+function zoomToSelection(){
+  if(!state.selection)return;
+  const total=state.overviewCandles.length;
+  const selected=state.selection.count;
+  const targetVisible=Math.max(10,Math.ceil(selected*1.8));
+  const wanted=Math.max(1,Math.min(12,Math.floor(total/targetVisible)||1));
+  const center=(state.selection.startIndex+state.selection.endIndex)/2;
+  setZoom(wanted,center);
+}
+
+function ensureSelectionVisible(){
+  if(!state.selection)return;
+  let win=visibleWindow();
+  if(state.selection.count>win.count){
+    const total=state.overviewCandles.length;
+    const wanted=Math.max(1,Math.floor(total/Math.ceil(state.selection.count*1.35)));
+    state.zoom=Math.max(1,Math.min(12,wanted));
+    $('zoomRange').value=String(state.zoom);
+    win=visibleWindow();
+  }
+  if(state.selection.startIndex<win.start||state.selection.endIndex>=win.end){
+    state.viewStart=Math.round((state.selection.startIndex+state.selection.endIndex-win.count+1)/2);
+    visibleWindow();
+  }
+  updateZoomStatus();
+}
+
+function drawMarker(ctx,x,top,bottom,label,time,color,alignRight=false){
+  ctx.save();
+  ctx.strokeStyle=color;ctx.fillStyle=color;ctx.lineWidth=3;
+  ctx.beginPath();ctx.moveTo(x,top-6);ctx.lineTo(x,bottom);ctx.stroke();
+  ctx.beginPath();ctx.arc(x,top-10,7,0,Math.PI*2);ctx.fill();
+  ctx.font='bold 11px Segoe UI';
+  const text=label+' '+time,tw=ctx.measureText(text).width,pad=6;
+  let bx=alignRight?x-tw-pad*2-8:x+8;
+  bx=Math.max(2,Math.min(ctx.canvas.width-tw-pad*2-2,bx));
+  ctx.fillRect(bx,top-28,tw+pad*2,20);
+  ctx.fillStyle='#071019';ctx.fillText(text,bx+pad,top-14);
+  ctx.restore();
+}
+
+function drawDayChart(){
+  const g=chartGeometry(),ctx=g.canvas.getContext('2d'),win=visibleWindow();
+  ctx.clearRect(0,0,g.w,g.h);
+  if(!win.count){updateZoomStatus();return}
+  const candles=state.overviewCandles.slice(win.start,win.end);
+  const plotW=g.w-g.left-g.right,plotH=g.h-g.top-g.bottom;
+  const lo=Math.min(...candles.map(c=>c.low)),hi=Math.max(...candles.map(c=>c.high)),span=hi-lo||1;
+  const y=p=>g.top+plotH-(p-lo)/span*plotH;
+  const step=plotW/win.count;
+  const bodyW=Math.max(1,Math.min(10,step*.62));
+
+  ctx.strokeStyle='#183048';ctx.lineWidth=1;ctx.fillStyle='#8298ad';ctx.font='11px Segoe UI';
+  for(let i=0;i<=5;i++){
+    const yy=g.top+plotH*i/5,price=hi-span*i/5;
+    ctx.beginPath();ctx.moveTo(g.left,yy);ctx.lineTo(g.w-g.right,yy);ctx.stroke();
+    ctx.fillText(n(price,2),4,yy+4);
+  }
+
+  const maxLabels=Math.max(8,Math.floor(plotW/72));
+  const labelEvery=Math.max(1,Math.ceil(win.count/maxLabels));
+  candles.forEach((c,local)=>{
+    const global=win.start+local,x=g.left+step*(local+.5);
+    if(local%labelEvery===0){
+      ctx.strokeStyle='#10283a';ctx.lineWidth=1;
+      ctx.beginPath();ctx.moveTo(x,g.top);ctx.lineTo(x,g.top+plotH);ctx.stroke();
+      ctx.fillStyle='#8298ad';ctx.font='11px Segoe UI';
+      ctx.fillText(isoTime(c.start),Math.max(g.left,x-16),g.h-18);
+      ctx.beginPath();ctx.moveTo(x,g.top+plotH);ctx.lineTo(x,g.top+plotH+5);ctx.stroke();
+    }
+    const up=c.close>=c.open;
+    ctx.strokeStyle=up?'#63d7ae':'#f47f8d';ctx.fillStyle=ctx.strokeStyle;
+    ctx.beginPath();ctx.moveTo(x,y(c.high));ctx.lineTo(x,y(c.low));ctx.stroke();
+    const yo=y(c.open),yc=y(c.close),bh=Math.max(1,Math.abs(yc-yo));
+    ctx.fillRect(x-bodyW/2,Math.min(yo,yc),bodyW,bh);
+  });
+
+  if(state.selection){
+    const selStart=Math.max(state.selection.startIndex,win.start);
+    const selEnd=Math.min(state.selection.endIndex+1,win.end);
+    if(selStart<selEnd){
+      const x1=xForBoundary(selStart,win),x2=xForBoundary(selEnd,win);
+      ctx.fillStyle='rgba(93,181,255,.13)';ctx.fillRect(x1,g.top,x2-x1,plotH);
+      ctx.strokeStyle='#5db5ff';ctx.lineWidth=1;ctx.strokeRect(x1,g.top,x2-x1,plotH);
+    }
+    const first=state.overviewCandles[state.selection.startIndex];
+    const last=state.overviewCandles[state.selection.endIndex];
+    if(state.selection.startIndex>=win.start&&state.selection.startIndex<=win.end){
+      drawMarker(ctx,xForBoundary(state.selection.startIndex,win),g.top,g.top+plotH,'INÍCIO',isoTime(first.start),'#5db5ff',false);
+    }
+    const endBoundary=state.selection.endIndex+1;
+    if(endBoundary>=win.start&&endBoundary<=win.end){
+      drawMarker(ctx,xForBoundary(endBoundary,win),g.top,g.top+plotH,'FIM',isoTime(last.end),'#f0b966',true);
+    }
+  }else if(state.dragStart!=null){
+    const a=Math.min(state.dragStart,state.dragCurrent==null?state.dragStart:state.dragCurrent);
+    const b=Math.max(state.dragStart,state.dragCurrent==null?state.dragStart:state.dragCurrent)+1;
+    const x1=xForBoundary(Math.max(a,win.start),win),x2=xForBoundary(Math.min(b,win.end),win);
+    ctx.fillStyle='rgba(93,181,255,.13)';ctx.fillRect(x1,g.top,Math.max(0,x2-x1),plotH);
+  }
+  updateZoomStatus();
+}
+
+function markerHitFromEvent(e){
+  if(!state.selection)return null;
+  const g=chartGeometry(),rect=g.canvas.getBoundingClientRect(),win=visibleWindow();
+  const x=(e.clientX-rect.left)*(g.canvas.width/rect.width);
+  const threshold=14;
+  const sx=xForBoundary(state.selection.startIndex,win);
+  const ex=xForBoundary(state.selection.endIndex+1,win);
+  if(state.selection.startIndex>=win.start&&state.selection.startIndex<=win.end&&Math.abs(x-sx)<=threshold)return 'start';
+  if(state.selection.endIndex+1>=win.start&&state.selection.endIndex+1<=win.end&&Math.abs(x-ex)<=threshold)return 'end';
+  return null;
 }
 
 function finalizeSelection(){
   if(state.dragStart==null||!state.overviewCandles.length)return;
   const a=Math.min(state.dragStart,state.dragCurrent==null?state.dragStart:state.dragCurrent);
   const b=Math.max(state.dragStart,state.dragCurrent==null?state.dragStart:state.dragCurrent);
-  const first=state.overviewCandles[a],last=state.overviewCandles[b];
-  state.selection={start:first.start,end:last.end,startIndex:a,endIndex:b,count:b-a+1};
-  $('selectionLabel').textContent=clock(first.start)+' → '+clock(last.end);
-  $('selectionCount').textContent=String(state.selection.count);
-  $('selectionInfo').classList.remove('hidden');
-  state.indexLocation=null;
-  $('locateBtn').disabled=false;
-  $('sliceBtn').disabled=true;
-  $('lineMapWrap').classList.add('hidden');
-  $('indexResult').textContent='Intervalo pronto. Cole o caminho do CSV grande e clique em “Preparar índice e localizar”.';
-  $('sliceResult').textContent='Prepare primeiro o índice temporal.';
-  drawDayChart();
+  setSelectionIndices(a,b);
+  state.dragMode=null;
+}
+
+function applyTimeSelection(){
+  const startValue=$('startTimeInput').value,endValue=$('endTimeInput').value;
+  const error=$('timeSelectionError');
+  if(!startValue||!endValue){error.textContent='Informe os horários de início e fim.';error.classList.remove('hidden');return}
+  const startIndex=state.overviewCandles.findIndex(c=>isoTime(c.start)===startValue);
+  const endIndex=state.overviewCandles.findIndex(c=>isoTime(c.end)===endValue);
+  if(startIndex<0||endIndex<0){
+    error.textContent='Os horários precisam coincidir com as fronteiras dos candles exibidos neste timeframe.';
+    error.classList.remove('hidden');return;
+  }
+  if(endIndex<startIndex){
+    error.textContent='O horário final precisa ser posterior ao horário inicial.';
+    error.classList.remove('hidden');return;
+  }
+  setSelectionIndices(startIndex,endIndex);
+  ensureSelectionVisible();drawDayChart();
 }
 
 async function refreshOverview(preferredSymbol=null){
@@ -117,11 +315,13 @@ async function loadOverviewCandles(){
   const meta=state.overviewSessions[idx];if(!symbol||!meta)return;
   state.overviewMeta=state.overview.find(x=>x.symbol===symbol&&x.session_date===meta.session_date&&x.interval_seconds===meta.interval_seconds)||meta;
   state.overviewCandles=await api('/api/reference-candles?symbol='+encodeURIComponent(symbol)+'&session_date='+meta.session_date+'&interval_seconds='+meta.interval_seconds);
-  state.dragStart=null;state.dragCurrent=null;state.selection=null;state.indexLocation=null;
-  $('selectionInfo').classList.add('hidden');$('locateBtn').disabled=true;$('sliceBtn').disabled=true;$('lineMapWrap').classList.add('hidden');
+  state.dragStart=null;state.dragCurrent=null;state.dragMode=null;state.selection=null;state.indexLocation=null;
+  state.zoom=1;state.viewStart=0;$('zoomRange').value='1';
+  $('selectionInfo').classList.add('hidden');$('locateBtn').disabled=true;$('sliceBtn').disabled=true;$('zoomSelectionBtn').disabled=true;$('lineMapWrap').classList.add('hidden');
+  $('startTimeInput').value='';$('endTimeInput').value='';$('timeSelectionError').classList.add('hidden');
   $('overviewEmpty').classList.toggle('hidden',state.overviewCandles.length>0);
   if(state.overviewMeta&&state.overviewMeta.tick_size)$('sliceTickInput').value=state.overviewMeta.tick_size;
-  drawDayChart();
+  updateZoomStatus();drawDayChart();
 }
 
 async function refresh(){
@@ -177,11 +377,53 @@ function familyLabel(x){return ({DIRECT_IMPULSE_UP:'Impulso direto de alta',DIRE
 async function trajectory(){const p=new URLSearchParams({symbol:$('symbolSelect').value,interval_seconds:$('intervalSelect').value,clusters:$('clusterSelect').value,sample_points:$('pointsSelect').value,quality_only:'true'});const r=await api('/api/trajectory/families?'+p);$('ruleFamilies').innerHTML=r.rule_families.map(x=>'<div class="family"><span>'+familyLabel(x.family)+'</span><strong>'+x.count+' · '+pct(x.share)+'</strong></div>').join('');$('clusters').innerHTML=r.clusters.map(x=>'<div class="cluster"><span>'+esc(x.label)+'<br><small>'+familyLabel(x.dominant_rule)+'</small></span><strong>'+x.size+'</strong></div>').join('')}
 async function transitions(){const p=new URLSearchParams({symbol:$('symbolSelect').value,interval_seconds:$('intervalSelect').value,clusters:$('clusterSelect').value,sample_points:$('pointsSelect').value,quality_only:'true'});if(state.selected)p.set('target_start',state.selected.start);const r=await api('/api/trajectory/transitions?'+p);$('stability').innerHTML=r.stability.map(x=>'<div class="transition"><span>'+familyLabel(x.family)+'<br><small>'+x.stability_label+' · '+x.sessions+' pregões</small></span><strong>'+n(x.stability_score,1)+'</strong></div>').join('');$('transitions').innerHTML=r.family_transitions.slice(0,12).map(x=>'<div class="transition"><span>'+familyLabel(x.from)+' → '+familyLabel(x.to)+'</span><strong>'+x.count+' · '+pct(x.probability)+'</strong></div>').join('');$('motifs').innerHTML=r.family_motifs.slice(0,8).map(x=>'<div class="transition"><span>'+x.sequence.map(familyLabel).join(' → ')+'</span><strong>'+x.count+'</strong></div>').join('');const s=r.selected_sequence;if(s&&s.current){const cell=(name,x)=>'<div><small>'+name+'</small><strong>'+(x?familyLabel(x.rule_family):'—')+'</strong></div>';$('sequenceBox').innerHTML=cell('Anterior',s.previous)+cell('Atual',s.current)+cell('Próximo',s.next)}else $('sequenceBox').innerHTML=''}
 
-$('dayCanvas').addEventListener('mousedown',e=>{if(!state.overviewCandles.length)return;state.dragStart=dayIndexFromEvent(e);state.dragCurrent=state.dragStart;drawDayChart()});
-$('dayCanvas').addEventListener('mousemove',e=>{if(state.dragStart==null||e.buttons!==1)return;state.dragCurrent=dayIndexFromEvent(e);drawDayChart()});
-$('dayCanvas').addEventListener('mouseup',e=>{if(state.dragStart==null)return;state.dragCurrent=dayIndexFromEvent(e);finalizeSelection()});
-$('dayCanvas').addEventListener('mouseleave',e=>{if(state.dragStart!=null&&e.buttons===1){state.dragCurrent=dayIndexFromEvent(e);finalizeSelection()}});
-$('clearSelectionBtn').onclick=()=>{state.dragStart=null;state.dragCurrent=null;state.selection=null;state.indexLocation=null;$('selectionInfo').classList.add('hidden');$('locateBtn').disabled=true;$('sliceBtn').disabled=true;$('lineMapWrap').classList.add('hidden');$('indexResult').textContent='Selecione primeiro um intervalo no gráfico.';$('sliceResult').textContent='Prepare primeiro o índice temporal.';drawDayChart()};
+$('dayCanvas').addEventListener('mousedown',e=>{
+  if(!state.overviewCandles.length)return;
+  const hit=markerHitFromEvent(e);
+  if(hit){state.dragMode=hit;return}
+  state.dragMode='new';state.selection=null;invalidateLocatedSlice();
+  state.dragStart=dayIndexFromEvent(e);state.dragCurrent=state.dragStart;updateSelectionUI();drawDayChart();
+});
+$('dayCanvas').addEventListener('mousemove',e=>{
+  if(!state.dragMode||e.buttons!==1)return;
+  if(state.dragMode==='new'){
+    state.dragCurrent=dayIndexFromEvent(e);drawDayChart();return;
+  }
+  const boundary=markerBoundaryFromEvent(e);
+  if(state.dragMode==='start'&&state.selection){
+    const newStart=Math.min(state.selection.endIndex,Math.max(0,boundary));
+    setSelectionIndices(newStart,state.selection.endIndex,{keepOrder:true});
+  }else if(state.dragMode==='end'&&state.selection){
+    const endBoundary=Math.max(state.selection.startIndex+1,boundary);
+    setSelectionIndices(state.selection.startIndex,endBoundary-1,{keepOrder:true});
+  }
+});
+$('dayCanvas').addEventListener('mouseup',()=>{
+  if(state.dragMode==='new')finalizeSelection();
+  state.dragMode=null;
+});
+$('dayCanvas').addEventListener('mouseleave',e=>{
+  if(state.dragMode==='new'&&e.buttons===1)finalizeSelection();
+  state.dragMode=null;
+});
+$('dayCanvas').addEventListener('wheel',e=>{
+  if(!e.ctrlKey)return;
+  e.preventDefault();
+  const center=dayIndexFromEvent(e);
+  setZoom(state.zoom+(e.deltaY<0?1:-1),center);
+},{passive:false});
+
+$('clearSelectionBtn').onclick=clearSelection;
+$('applyTimeSelectionBtn').onclick=applyTimeSelection;
+$('startTimeInput').addEventListener('change',()=>{if($('endTimeInput').value)applyTimeSelection()});
+$('endTimeInput').addEventListener('change',()=>{if($('startTimeInput').value)applyTimeSelection()});
+$('zoomRange').addEventListener('input',e=>setZoom(Number(e.target.value)));
+$('zoomInBtn').onclick=()=>setZoom(state.zoom+1);
+$('zoomOutBtn').onclick=()=>setZoom(state.zoom-1);
+$('panLeftBtn').onclick=()=>panChart(-1);
+$('panRightBtn').onclick=()=>panChart(1);
+$('resetZoomBtn').onclick=()=>{state.zoom=1;state.viewStart=0;$('zoomRange').value='1';updateZoomStatus();drawDayChart()};
+$('zoomSelectionBtn').onclick=zoomToSelection;
 
 function selectedCandleStarts(){
   if(!state.selection)return[];
