@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from datetime import date, datetime, timedelta
 import os
+import threading
+import uuid
 from pathlib import Path
 import tempfile
 
@@ -53,7 +55,20 @@ class SliceImportRequest(BaseModel):
 def create_app(db_path:str|Path=DEFAULT_DB)->FastAPI:
     app=FastAPI(title="Candle Lab B3",version=VERSION)
     store=MarketStore(db_path);app.state.store=store
+    index_jobs:dict[str,dict[str,object]]={}
+    index_jobs_lock=threading.Lock()
+    app.state.index_jobs=index_jobs
     app.mount("/static",StaticFiles(directory=STATIC_DIR),name="static")
+
+    def _set_index_job(job_id:str,**changes:object)->None:
+        with index_jobs_lock:
+            current=index_jobs.setdefault(job_id,{"job_id":job_id})
+            current.update(changes)
+
+    def _get_index_job(job_id:str)->dict[str,object]|None:
+        with index_jobs_lock:
+            current=index_jobs.get(job_id)
+            return dict(current) if current is not None else None
 
     @app.get("/")
     def root():return FileResponse(STATIC_DIR/"index.html")
@@ -139,6 +154,60 @@ def create_app(db_path:str|Path=DEFAULT_DB)->FastAPI:
             return {**result,"batch_id":batch_id,"symbol":refs[0].symbol,"report":report.to_dict()}
         except Exception as exc:raise HTTPException(status_code=400,detail=str(exc)) from exc
         finally:temp_path.unlink(missing_ok=True)
+
+    @app.post("/api/time-index/start")
+    def time_index_start(request:TimeIndexRequest):
+        symbol=request.symbol.strip().upper()
+        if not symbol:raise HTTPException(status_code=400,detail="Informe o contrato real.")
+        if request.end <= request.start:raise HTTPException(status_code=400,detail="O fim precisa ser posterior ao início.")
+        if request.interval_seconds <= 0:raise HTTPException(status_code=400,detail="interval_seconds deve ser positivo.")
+
+        job_id=uuid.uuid4().hex
+        _set_index_job(job_id,status="queued",progress={
+            "phase":"queued","percent":0.0,"rows":0,"bytes_processed":0,"bytes_total":0,"minutes_indexed":0
+        })
+
+        source_path=request.source_path
+        start=request.start
+        end=request.end
+        interval_seconds=request.interval_seconds
+        candle_starts=list(request.candle_starts)
+
+        def worker():
+            _set_index_job(job_id,status="running")
+            try:
+                def on_progress(info:dict[str,object])->None:
+                    _set_index_job(job_id,status="running",progress=dict(info))
+
+                index,built=ensure_time_index(
+                    source_path,index_dir=PROJECT_ROOT/"data"/"indexes",symbol=symbol,progress=on_progress
+                )
+                interval=locate_interval(index,start=start,end=end)
+                starts=candle_starts or [start]
+                candles=locate_candles(index,candle_starts=starts,interval_seconds=interval_seconds)
+                result={
+                    "index_built_now":built,
+                    "index":index_summary(index),
+                    "selection":interval,
+                    "candles":candles,
+                    "rule":"Uma linha pertence ao candle quando candle_start <= timestamp < candle_end.",
+                }
+                _set_index_job(job_id,status="completed",progress={
+                    "phase":"completed","percent":100.0,"rows":index.rows,
+                    "bytes_processed":index.source_size,"bytes_total":index.source_size,
+                    "minutes_indexed":len(index.buckets)
+                },result=result)
+            except Exception as exc:
+                _set_index_job(job_id,status="failed",error=str(exc))
+
+        threading.Thread(target=worker,name=f"candle-lab-index-{job_id[:8]}",daemon=True).start()
+        return {"job_id":job_id,"status":"queued"}
+
+    @app.get("/api/time-index/jobs/{job_id}")
+    def time_index_job(job_id:str):
+        payload=_get_index_job(job_id)
+        if payload is None:raise HTTPException(status_code=404,detail="Tarefa de indexação não encontrada.")
+        return payload
 
     @app.post("/api/time-index/locate")
     def time_index_locate(request:TimeIndexRequest):
