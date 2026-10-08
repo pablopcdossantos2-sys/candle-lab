@@ -10,3 +10,23 @@
 .index-progress-head span{font-size:12px;color:#8fa9c1;text-align:right}
 .index-progress-track{height:12px;border-radius:999px;background:#132534;overflow:hidden;border:1px solid #20394d}
 .index-progress-bar{height:100%;width:0%;background:linear-gradient(90deg,#5db5ff,#63d7ae);transition:width .22s ease}
+
+.aggression-panel{margin-top:18px;padding-top:14px;border-top:1px solid #24384b}
+.aggression-rankings{margin:12px 0}
+.agent-list{display:grid;gap:7px}
+.agent-row{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:9px 10px;border:1px solid #233b50;border-radius:9px;background:#0a1722}
+.agent-row small,.muted{color:#8fa1b5}
+.aggression-table-wrap{max-height:520px}
+.aggression-table{min-width:1180px}
+.aggression-table td{vertical-align:top}
+.aggression-table small{color:#8fa1b5}
+.delta-buy{color:#63d7ae;font-weight:700}
+.delta-sell{color:#f47f8d;font-weight:700}
+.intensity{display:inline-block;padding:3px 7px;border-radius:999px;font-size:11px;font-weight:700;border:1px solid #30485d}
+.intensity-baixa{background:#102231}
+.intensity-moderada{background:#1b2b3d}
+.intensity-alta{background:#4a3518;border-color:#7a5b2c}
+.intensity-extrema{background:#55232b;border-color:#87404c}
+.intensity-sem_agressao_direcionada{background:#151d24}
+.aggr-extrema td:first-child{box-shadow:inset 4px 0 0 #f47f8d}
+.aggr-alta td:first-child{box-shadow:inset 4px 0 0 #f0b966}
