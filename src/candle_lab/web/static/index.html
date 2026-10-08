@@ -154,6 +154,34 @@
     <div><h3>Trajetória intrabar</h3><canvas id="pathCanvas" width="700" height="260"></canvas></div>
     <div><h3>Volume por preço</h3><div id="volumeLevels" class="levels"></div></div>
   </div>
+
+  <div class="aggression-panel">
+    <div class="section-head">
+      <div>
+        <h3>Mapa de agressão por preço</h3>
+        <p>Volume agressor executado, delta, intensidade relativa e principais agentes em cada nível.</p>
+      </div>
+      <span class="badge real">DADOS OBSERVADOS</span>
+    </div>
+    <div id="aggressionKpis" class="kpis"></div>
+    <div class="two-col aggression-rankings">
+      <div><h4>Principais agressores compradores</h4><div id="topBuyAggressors" class="agent-list"></div></div>
+      <div><h4>Principais agressores vendedores</h4><div id="topSellAggressors" class="agent-list"></div></div>
+    </div>
+    <div class="table-wrap aggression-table-wrap">
+      <table class="aggression-table">
+        <thead>
+          <tr>
+            <th>Preço</th><th>Compra agr.</th><th>Venda agr.</th><th>Delta</th><th>Intensidade</th>
+            <th>Dominância</th><th>Top comprador</th><th>Top vendedor</th><th>Leitura</th>
+          </tr>
+        </thead>
+        <tbody id="aggressionBody"></tbody>
+      </table>
+    </div>
+    <div id="aggressionMethod" class="notice"></div>
+  </div>
+
   <div class="replay-bar"><button id="playBtn" class="primary">▶ Reproduzir</button><button id="stepBtn">Avançar 1 negócio</button><button id="resetBtn">Reiniciar</button><span id="replayState"></span></div>
   <div class="table-wrap trades"><table><thead><tr><th>#</th><th>Hora</th><th>Preço</th><th>Qtd.</th><th>Agressor</th><th>Comprador</th><th>Vendedor</th></tr></thead><tbody id="tradeBody"></tbody></table></div>
   <div class="counter"><h3>Caminho alternativo</h3><span class="badge simulation">SIMULAÇÃO CONTRAFACTUAL</span><canvas id="counterCanvas" width="700" height="180"></canvas></div>
