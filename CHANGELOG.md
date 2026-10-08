@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.14.0 — 2026-10-07
+- seleção de intervalo redesenhada no gráfico diário;
+- zoom horizontal em até 12 níveis;
+- maior densidade de marcações temporais no eixo X conforme o zoom aumenta;
+- botões para panorâmica esquerda/direita e retorno ao dia inteiro;
+- comando `Zoom na seleção`;
+- suporte a `Ctrl + roda do mouse` para zoom;
+- marcadores verticais arrastáveis **INÍCIO** e **FIM**;
+- campos de horário de início/fim sincronizados com a seleção;
+- seleção automática ao digitar horários como `14:40`–`14:50`;
+- validação de fronteiras de candle conforme o timeframe exibido;
+- tutorial completo de instalação e uso no Windows;
+- inicializador Windows com mensagens de primeira execução e erro de Python mais claras;
+- CI passa a validar também `iniciar.ps1`.
+
+
 ## 0.13.0 — 2026-10-07
 - índice temporal persistente de 1 minuto para o CSV Tick by Tick original;
 - mapeamento exato de candles para linhas físicas do arquivo;
