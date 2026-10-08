@@ -23,6 +23,9 @@ class SliceResult:
     scanned_rows: int
     matched_rows: int
     stopped_early: bool
+    source_fingerprint: str
+    first_source_row: int
+    last_source_row: int
     sha256: str
 
     def to_dict(self) -> dict[str, object]:
@@ -80,6 +83,24 @@ def _probe(path: Path, max_rows: int = 20_000) -> tuple[str, csv.Dialect, str, s
     return encoding, dialect, next(iter(symbols)), order
 
 
+def source_fingerprint(path: str | Path, block_size: int = 1024 * 1024) -> str:
+    """Identidade rápida da fonte sem reler todo o CSV.
+
+    Usa tamanho + primeiro/último bloco. Serve para idempotência dos recortes;
+    não é apresentado como SHA-256 integral do arquivo original.
+    """
+    path = Path(path).resolve()
+    stat = path.stat()
+    digest = hashlib.sha256()
+    digest.update(str(stat.st_size).encode())
+    with path.open("rb") as handle:
+        digest.update(handle.read(block_size))
+        if stat.st_size > block_size:
+            handle.seek(max(0, stat.st_size - block_size))
+            digest.update(handle.read(block_size))
+    return digest.hexdigest()
+
+
 def _sha256(path: Path, block_size: int = 8 * 1024 * 1024) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as handle:
@@ -127,7 +148,10 @@ def slice_profit_trades(
 
     scanned = matched = 0
     stopped_early = False
+    first_source_row = 0
+    last_source_row = 0
     source_size = source.stat().st_size
+    source_id = source_fingerprint(source)
 
     with source.open("r", encoding=encoding, newline="") as src, output.open("w", encoding=encoding, newline="") as dst:
         reader = csv.reader(src, dialect=dialect)
@@ -140,24 +164,30 @@ def slice_profit_trades(
                 raise ValueError(f"Linha {scanned}: esperado=8 colunas; recebido={len(row)}")
             ts = _parse_datetime(None, row[1], row[2])
 
+            include = False
             if source_order == "DESCENDING":
                 if ts >= end:
-                    pass
+                    include = False
                 elif ts < start:
                     stopped_early = True
                     break
                 else:
-                    writer.writerow(row)
-                    matched += 1
+                    include = True
             else:
                 if ts < start:
-                    pass
+                    include = False
                 elif ts >= end:
                     stopped_early = True
                     break
                 else:
-                    writer.writerow(row)
-                    matched += 1
+                    include = True
+
+            if include:
+                writer.writerow(row)
+                matched += 1
+                if first_source_row == 0:
+                    first_source_row = scanned
+                last_source_row = scanned
 
             if progress and scanned % 100_000 == 0:
                 progress({
@@ -186,5 +216,8 @@ def slice_profit_trades(
         scanned_rows=scanned,
         matched_rows=matched,
         stopped_early=stopped_early,
+        source_fingerprint=source_id,
+        first_source_row=first_source_row,
+        last_source_row=last_source_row,
         sha256=_sha256(output),
     )
