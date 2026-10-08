@@ -800,3 +800,5 @@ A v0.19.1 consolida a etapa iniciada na v0.18:
 - versões do pacote, servidor web e cache estático foram alinhadas.
 
 A validação histórica continua sendo um funil de pesquisa, não uma declaração automática de vantagem operacional.
+
+Fluxo operacional completo: `docs/TUTORIAL-VALIDACAO-E-INDICADORES.md`.
