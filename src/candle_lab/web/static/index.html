@@ -155,6 +155,45 @@
     <div><h3>Volume por preço</h3><div id="volumeLevels" class="levels"></div></div>
   </div>
 
+  <div class="interpretation-panel">
+    <div class="section-head">
+      <div>
+        <h3>Relatório interpretativo do candle</h3>
+        <p>Descrição auditável da formação do candle e hipóteses sobre por que ele fechou dessa maneira.</p>
+      </div>
+      <span class="badge simulation">ANÁLISE PÓS-FECHAMENTO</span>
+    </div>
+    <div id="interpretationReplayNotice" class="notice hidden">
+      O relatório final fica oculto durante o replay para não revelar informações futuras.
+    </div>
+    <div id="interpretationContent">
+      <div id="interpretationQuality" class="kpis"></div>
+      <div class="interpretation-block">
+        <h4>Síntese do fechamento</h4>
+        <p id="closingSynthesis"></p>
+      </div>
+      <div class="interpretation-grid">
+        <div class="interpretation-block">
+          <h4>Como a agressão se desenvolveu</h4>
+          <div id="processDescription" class="interpretation-list"></div>
+        </div>
+        <div class="interpretation-block">
+          <h4>Evidências observadas</h4>
+          <div id="observedFacts" class="interpretation-list"></div>
+        </div>
+      </div>
+      <div class="interpretation-block">
+        <h4>Hipóteses explicativas</h4>
+        <div id="hypothesisList" class="hypothesis-list"></div>
+      </div>
+      <details class="interpretation-limitations">
+        <summary>Limitações e cautelas metodológicas</summary>
+        <div id="interpretationLimitations" class="interpretation-list"></div>
+      </details>
+      <button id="copyInterpretationBtn" type="button">Copiar relatório em texto</button>
+    </div>
+  </div>
+
   <div class="aggression-panel">
     <div class="section-head">
       <div>
