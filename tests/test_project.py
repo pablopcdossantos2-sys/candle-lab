@@ -329,13 +329,19 @@ class SelectiveSliceTests(unittest.TestCase):
             output = root / "slice.csv"
             source.write_text(content, encoding="cp1252")
 
+            slice_progress=[]
             result = slice_profit_trades(
                 source,
                 start=datetime(2026,10,7,10,1,tzinfo=tz),
                 end=datetime(2026,10,7,10,3,tzinfo=tz),
                 output_path=output,
                 symbol="WINSEL",
+                progress=slice_progress.append,
             )
+            self.assertTrue(slice_progress)
+            self.assertEqual(slice_progress[0]["percent"],0.0)
+            self.assertEqual(slice_progress[-1]["percent"],100.0)
+            self.assertEqual(slice_progress[-1]["bytes_processed"],slice_progress[-1]["bytes_total"])
             self.assertEqual(result.matched_rows, 4)
             self.assertEqual(result.source_order, "DESCENDING")
             self.assertTrue(result.stopped_early)
@@ -596,6 +602,7 @@ class UiContractTests(unittest.TestCase):
             "startTimeInput","endTimeInput","applyTimeSelectionBtn","zoomSelectionBtn",
             "dayCanvas","selectionLabel","selectionCount","locateBtn","sliceBtn",
             "indexProgressWrap","indexProgressPct","indexProgressText","indexProgressBar",
+            "sliceProgressWrap","sliceProgressPct","sliceProgressText","sliceProgressBar",
         ]
         for control_id in required_ids:
             self.assertIn(f'id="{control_id}"', html)
@@ -606,6 +613,8 @@ class UiContractTests(unittest.TestCase):
         self.assertIn("Ctrl", html)
         self.assertIn("/api/time-index/start", js)
         self.assertIn("/api/time-index/jobs/", js)
+        self.assertIn("/api/slice-import/start", js)
+        self.assertIn("/api/slice-import/jobs/", js)
 
 class StorageTests(unittest.TestCase):
     def test_duckdb_and_parquet_roundtrip(self):
