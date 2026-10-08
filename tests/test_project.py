@@ -10,6 +10,7 @@ from candle_lab.models import Trade
 from candle_lab.importers import import_csv_with_report, _decimal_number, _profit_decimal_number
 from candle_lab.reconciliation import import_reference_candles, reconcile_observed_window, reconcile_available_candles
 from candle_lab.sample import generate_builtin_sample
+from candle_lab.quality import assess_library_quality
 from candle_lab.storage import MarketStore
 from candle_lab.trajectory import classify_rule_family, deterministic_kmeans
 from candle_lab.transitions import analyze_stability_and_transitions
@@ -615,6 +616,32 @@ class UiContractTests(unittest.TestCase):
         self.assertIn("/api/time-index/jobs/", js)
         self.assertIn("/api/slice-import/start", js)
         self.assertIn("/api/slice-import/jobs/", js)
+
+class SessionQualityPersistenceTests(unittest.TestCase):
+    def test_replace_session_quality_persists_payload_without_parameter_mismatch(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp)
+            store=MarketStore(root/"lab.duckdb")
+            trades=generate_builtin_sample("WINQUAL")
+            qualities=assess_library_quality(trades)
+            self.assertGreater(len(qualities),0)
+            inserted=store.replace_session_quality("WINQUAL",qualities)
+            self.assertEqual(inserted,len(qualities))
+            first=qualities[0]
+            payload=store.get_session_quality("WINQUAL",first.session_date)
+            self.assertIsNotNone(payload)
+            self.assertEqual(payload["model_version"],first.to_record()["model_version"] if "model_version" in first.to_record() else payload["model_version"])
+            with store.connect() as con:
+                row=con.execute(
+                    "SELECT quality_key,symbol,session_date,model_version,payload_json,updated_at "
+                    "FROM session_quality WHERE symbol=? ORDER BY session_date LIMIT 1",
+                    ["WINQUAL"],
+                ).fetchone()
+            self.assertIsNotNone(row)
+            self.assertEqual(row[1],"WINQUAL")
+            self.assertIsNotNone(row[4])
+            self.assertIsNotNone(row[5])
+
 
 class StorageTests(unittest.TestCase):
     def test_duckdb_and_parquet_roundtrip(self):
