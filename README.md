@@ -2,7 +2,7 @@
 
 **Laboratório local para investigar como candles de futuros da B3 são formados negócio a negócio.**
 
-Versão atual: **0.18.0**
+Versão atual: **0.19.1**
 
 O Candle Lab B3 nasceu de uma pergunta simples: **dois candles visualmente parecidos necessariamente foram formados da mesma maneira?**
 
@@ -786,3 +786,17 @@ Também foram adicionados:
 - `prompts/PROMPTS-PROFIT-NTSL-CANDLE-LAB.md`.
 
 O objetivo é usar os resultados históricos do Candle Lab como funil de seleção antes de escrever indicadores para TradingView ou Profit.
+
+
+## Fechamento da etapa de validação/indicadores — v0.19.1
+
+A v0.19.1 consolida a etapa iniciada na v0.18:
+
+- o relatório de **Validação histórica das hipóteses** pode ser baixado em JSON;
+- esse JSON foi pensado para alimentar as futuras IAs encarregadas de implementar indicadores;
+- o pacote de prompts TradingView passa a cobrir também viabilidade de concentração por agente e painel explicativo;
+- o pacote Profit/NTSL passa a cobrir o painel explicativo;
+- ambos os pacotes incluem um prompt específico para ler o JSON histórico antes de transformar uma hipótese em indicador;
+- versões do pacote, servidor web e cache estático foram alinhadas.
+
+A validação histórica continua sendo um funil de pesquisa, não uma declaração automática de vantagem operacional.
