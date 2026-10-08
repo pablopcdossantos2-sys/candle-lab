@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.17.0 — 2026-10-08
+- adiciona motor determinístico e auditável de interpretação do candle;
+- gera descrição cronológica da agressão em início, miolo e fase final;
+- separa evidências observadas de hipóteses explicativas;
+- gera hipóteses para agressão alinhada, divergência preço/delta, possível absorção, rejeição de extremos, onda aberta, disputa bilateral e mudança de controle;
+- adiciona score de qualidade da evidência com cobertura do agressor e identidade dos agentes;
+- adiciona score e força interna para cada hipótese, explicitamente não tratados como probabilidade estatística;
+- gera síntese textual sobre por que o candle pode ter fechado daquela maneira;
+- adiciona painel `Relatório interpretativo do candle`;
+- oculta o relatório durante replay parcial para evitar revelar informações futuras;
+- adiciona botão para copiar o relatório em texto;
+- preserva versões dos modelos e DNA no payload de auditoria;
+- adiciona testes de interpretação direcional, divergência preço/delta, baixa cobertura e integração no detalhe do candle;
+- documenta metodologia em `docs/RELATORIO-INTERPRETATIVO-CANDLE.md`.
+
+
 ## 0.16.0 — 2026-10-08
 - adiciona detecção causal de ondas de agressão BUY/SELL por janela móvel de negócios;
 - identifica término por `EXAUSTAO`, `NEUTRALIZACAO` e `TROCA_CONTROLE`;
