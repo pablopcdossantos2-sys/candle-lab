@@ -2,7 +2,7 @@
 
 **Laboratório local para investigar como candles de futuros da B3 são formados negócio a negócio.**
 
-Versão atual: **0.12.0**
+Versão atual: **0.13.0**
 
 O Candle Lab B3 nasceu de uma pergunta simples: **dois candles visualmente parecidos necessariamente foram formados da mesma maneira?**
 
@@ -234,7 +234,31 @@ A ingestão integral da v0.11 continua disponível para auditorias específicas,
 
 Veja `docs/TUTORIAL-FLUXO-SELETIVO.md`.
 
-### 14. Caminhos contrafactuais
+### 14. Índice temporal: candle → linhas → bytes — v0.13
+
+A v0.13 acrescenta um índice leve do CSV Tick by Tick original. O arquivo grande é lido integralmente uma única vez e o Candle Lab registra, minuto a minuto:
+
+- primeira e última linha física;
+- offsets inicial e final de byte;
+- quantidade real de negócios;
+- primeiro e último timestamp;
+- ordem física da fonte.
+
+A regra é sempre:
+
+`candle_start <= timestamp < candle_end`
+
+Não são usadas médias de negócios por minuto.
+
+Depois que o índice existe, uma nova seleção no gráfico é convertida imediatamente em linhas e bytes. A interface mostra, candle a candle, o intervalo físico de linhas e as linhas correspondentes à abertura e ao fechamento cronológicos.
+
+Em arquivos descendentes do Profit, a abertura cronológica normalmente está em uma linha de número maior que o fechamento.
+
+O recorte usa os offsets do índice para executar `seek` diretamente na região necessária do arquivo, em vez de reler centenas de MB anteriores.
+
+Veja `docs/INDICE-TEMPORAL-LINHAS.md` e `docs/TUTORIAL-LOCALIZAR-LINHAS.md`.
+
+### 15. Caminhos contrafactuais
 
 O programa também pode criar uma trajetória diferente que preserve o mesmo OHLC.
 
@@ -328,8 +352,10 @@ A v0.12 separa a **visão geral do dia** da **microestrutura detalhada**.
 3. No gráfico completo, arraste o mouse sobre os candles que deseja estudar.
 4. Mantenha o CSV grande de Trades no local original do seu computador.
 5. Use **Copiar como caminho** no Windows e cole esse caminho no Candle Lab.
-6. Clique em **Recortar e importar intervalo**.
-7. Abra os candles do recorte na Biblioteca de microestrutura.
+6. Clique em **Preparar índice e localizar**. Na primeira utilização, aguarde a indexação do arquivo; nas seguintes o índice será reutilizado.
+7. Confira a tabela de linhas físicas e abertura/fechamento de cada candle.
+8. Clique em **Recortar e importar intervalo localizado**.
+9. Abra os candles do recorte na Biblioteca de microestrutura.
 
 O Candle Lab gera apenas um pequeno arquivo em `data/slices`. Você pode apagá-lo depois e recriá-lo a qualquer momento a partir do CSV original.
 
@@ -364,6 +390,7 @@ Isso evita misturar vencimentos diferentes sem uma regra explícita de rollover.
 Por padrão:
 
 - banco local: `data/candle_lab.duckdb`;
+- índices temporais reutilizáveis: `data/indexes/*.cidx.json`;
 - recortes seletivos: `data/slices/*.csv`;
 - Parquet de auditorias integrais, quando usados: `data/parquet/<CONTRATO>/<DATA>.parquet`;
 - relatórios: `data/reports`.
@@ -426,6 +453,14 @@ candle-lab import sample_data\nelogica_tick_exemplo.csv --tick-size 5 --source p
 
 ```powershell
 candle-lab reconcile sample_data\nelogica_tick_exemplo.csv sample_data\reference_exemplo_1m.csv --symbol WINEXEMPLO --tick-size 5 --interval 60
+```
+
+### Criar o índice temporal e localizar linhas
+
+```powershell
+candle-lab index-trades "C:\Dados\WINV26_TRADES.csv" --symbol WINV26
+
+candle-lab locate-lines "C:\Dados\WINV26_TRADES.csv" --symbol WINV26 --start "2026-10-07T14:40:00-03:00" --end "2026-10-07T14:50:00-03:00" --interval 60
 ```
 
 ### Gerar um recorte seletivo pela linha de comando
@@ -544,6 +579,8 @@ Para aprofundar o projeto:
 - `docs/VALIDACAO-V08.md` — validação funcional da camada de trajetórias;
 - `docs/VALIDACAO-EMPIRICA-V010.md` — primeira validação com dados reais do WINV26;
 - `docs/TUTORIAL-FLUXO-SELETIVO.md` — fluxo recomendado: gráfico diário, seleção e recorte Tick;
+- `docs/INDICE-TEMPORAL-LINHAS.md` — regra exata candle → linhas → bytes;
+- `docs/TUTORIAL-LOCALIZAR-LINHAS.md` — tutorial para preparar o índice e localizar candles;
 - `docs/TUTORIAL-VALIDACAO-PREGAO-COMPLETO.md` — auditoria opcional do pregão inteiro.
 
 ---
@@ -561,7 +598,8 @@ O projeto ainda está em desenvolvimento. Entre as limitações conhecidas:
 - a v0.10 foi validada em um recorte real de 10 minutos do WINV26;
 - a v0.11 mantém ingestão integral em chunks como ferramenta de auditoria;
 - a v0.12 passa a recomendar recortes seletivos e não exige armazenar um pregão Tick inteiro;
-- a extração seletiva atual foi desenhada para o layout real sem cabeçalho do Profit já validado pelo projeto.
+- a extração seletiva e o índice temporal foram desenhados para o layout real sem cabeçalho do Profit já validado pelo projeto;
+- o índice v0.13 trabalha com buckets-base de 1 minuto e exige fronteiras alinhadas ao minuto para que o mapa de linhas seja exato.
 
 ---
 
