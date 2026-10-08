@@ -602,3 +602,148 @@ Quando esse relatório for fornecido:
 - https://www.tradingview.com/pine-script-docs/language/type-system/
 
 A documentação pode mudar. Não use este prompt como substituto de verificação oficial.
+
+
+---
+
+# TV-CL-11 — Concentração por agente / fingerprint
+
+Use o PROMPT BASE, mas **não escreva código imediatamente**.
+
+## Objetivo
+
+Avaliar se é possível reproduzir, no Pine Script atual, a métrica do Candle Lab que mede concentração da agressão por agente/corretora.
+
+## Etapa obrigatória de viabilidade
+
+Antes de programar:
+
+1. consulte a documentação oficial atual do Pine;
+2. verifique se existe API documentada que exponha identidade de agente/corretora por negócio;
+3. diferencie footprint buy/sell de identificação de participante;
+4. procure apenas APIs oficiais, sem assumir acesso ao Times & Trades de outra plataforma.
+
+## Regra de decisão
+
+Se não existir identificação de agente/corretora acessível ao script:
+
+- **não invente uma aproximação**;
+- não use footprint buy/sell como se fosse identificação de player;
+- entregue um relatório técnico explicando a impossibilidade de reprodução fiel;
+- proponha, separadamente, métricas possíveis apenas com volume/footprint, como concentração por row ou imbalance, deixando claro que são outra variável.
+
+## Se houver API oficial futura
+
+Somente então implemente:
+
+- participação do maior agente;
+- participação dos 3 maiores;
+- HHI de concentração;
+- persistência do mesmo agente;
+- entrada/saída do principal agressor.
+
+## Entregável
+
+O resultado principal pode ser um relatório de inviabilidade. Isso é uma conclusão válida e preferível a código baseado em dados inexistentes.
+
+---
+
+# TV-CL-12 — Painel explicativo do candle
+
+Use o PROMPT BASE e implemente **Candle Lab — Candle Microstructure Explainer**.
+
+## Objetivo
+
+Criar um painel compacto que resuma apenas variáveis que o TradingView realmente consegue observar ou aproximar.
+
+O painel deve mostrar, quando disponíveis:
+
+- buy volume do footprint;
+- sell volume do footprint;
+- delta;
+- delta normalizado;
+- intensidade relativa;
+- relação preço × delta;
+- estado de divergência;
+- estado de onda aproximado;
+- eficiência esforço × resultado;
+- hipótese dominante compatível;
+- qualidade/disponibilidade do dado.
+
+## Regras de linguagem
+
+Não reproduza automaticamente o texto completo do relatório interpretativo do Candle Lab.
+
+Use estados curtos e auditáveis, por exemplo:
+
+```text
+Fluxo: BUY dominante
+Delta: +12.450
+Intensidade: HIGH
+Preço × delta: alinhado
+Onda: BUY ativa
+Eficiência: alta
+Leitura: continuação compatível
+Fonte: TradingView footprint
+```
+
+ou:
+
+```text
+Preço × delta: divergente
+Leitura: candidato a absorção
+```
+
+Nunca usar “absorção confirmada”.
+
+## Arquitetura
+
+Reutilize funções dos módulos simples CL-01/02/03/05/06/08 em vez de duplicar cálculos.
+
+O painel deve ter um modo diagnóstico que mostre quais condições foram verdadeiras.
+
+## Disponibilidade
+
+Se `request.footprint()` retornar `na`:
+
+- exibir NO_FOOTPRINT;
+- não preencher valores com volume comum sem autorização explícita;
+- não gerar hipóteses baseadas em delta inexistente.
+
+## Alertas
+
+Não criar um alerta genérico “compre/venda”.
+
+Se o usuário habilitar alertas, crie condições para estados objetivos, por exemplo:
+
+- divergência preço × delta confirmada;
+- exaustão aproximada confirmada;
+- troca de controle confirmada;
+- pressão persistente no fechamento.
+
+## Validação
+
+Inclua um roteiro para comparar visualmente os estados do painel com candles já analisados no Candle Lab.
+
+---
+
+# PROMPT DE INTEGRAÇÃO COM RELATÓRIO HISTÓRICO DO CANDLE LAB
+
+Use este prompt quando o usuário fornecer um arquivo JSON exportado pela seção **Validação histórica das hipóteses**.
+
+Você é responsável por transformar apenas resultados historicamente sustentados e tecnicamente reproduzíveis em requisitos de indicador Pine.
+
+## Procedimento obrigatório
+
+1. leia `model_version`, `reference_mode`, `input`, `baselines`, `directional_results` e `warnings`;
+2. liste as hipóteses por horizonte;
+3. mostre N, taxa, baseline, lift e IC Wilson 95%;
+4. descarte ou marque como exploratória qualquer linha com `AMOSTRA_INSUFICIENTE`;
+5. não trate `PRELIMINAR` ou `AMOSTRA_MAIOR` como prova de causalidade;
+6. verifique se a variável original é observável no TradingView;
+7. se houver apenas proxy, documente a mudança semântica;
+8. proponha uma especificação antes de escrever código;
+9. congele os parâmetros escolhidos e registre a versão do relatório usada;
+10. reserve um período fora da amostra para validação final.
+
+Não selecione automaticamente a linha de maior lift. Considere tamanho da amostra, intervalo de confiança, estabilidade entre horizontes e viabilidade de reprodução.
