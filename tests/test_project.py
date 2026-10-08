@@ -392,6 +392,17 @@ class SelectiveSliceTests(unittest.TestCase):
             self.assertEqual((mapped[1]["source_row_min"],mapped[1]["source_row_max"]),(2,3))
             self.assertEqual((mapped[1]["chronological_open_row"],mapped[1]["chronological_close_row"]),(3,2))
 
+            mapped_m2 = locate_candles(index,candle_starts=[start],interval_seconds=120)
+            self.assertEqual((mapped_m2[0]["source_row_min"],mapped_m2[0]["source_row_max"]),(2,5))
+            self.assertEqual(mapped_m2[0]["trades"],4)
+
+            with self.assertRaises(ValueError):
+                locate_interval(
+                    index,
+                    start=start+timedelta(seconds=30),
+                    end=end,
+                )
+
             full_output = root / "full_scan.csv"
             full = slice_profit_trades(source,start=start,end=end,output_path=full_output,symbol="WINIDX")
 
