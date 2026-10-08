@@ -14,6 +14,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from ..candles import build_candles, floor_time
+from ..historical_validation import validate_historical_hypotheses
 from ..importers import import_csv_with_report, import_generic_csv
 from ..reconciliation import ReferenceCandle, import_reference_candles, reconcile_candles, reconcile_observed_window, reconcile_available_candles
 from ..research import build_research_index, intrabar_comparison_payload, research_matches
@@ -461,6 +462,36 @@ def create_app(db_path:str|Path=DEFAULT_DB)->FastAPI:
                 quality_only=quality_only,other_sessions_only=other_sessions_only)
             payload["index_status"]=status;payload["index_refreshed"]=refreshed;return payload
         except ValueError as exc:raise HTTPException(status_code=400,detail=str(exc)) from exc
+
+    @app.get("/api/research/hypothesis-validation")
+    def hypothesis_validation(
+        symbol:str,
+        interval_seconds:int=Query(60,ge=1,le=3600),
+        horizons:str="1,3,5",
+        include_synthetic:bool=False,
+    ):
+        symbol=symbol.strip().upper()
+        trades=store.load_trades(symbol)
+        if not trades:
+            raise HTTPException(status_code=404,detail="Nenhum negócio disponível para validação histórica")
+        try:
+            parsed=tuple(sorted({int(item.strip()) for item in horizons.split(",") if item.strip()}))
+        except ValueError as exc:
+            raise HTTPException(status_code=400,detail="Horizontes devem ser inteiros separados por vírgula, por exemplo 1,3,5") from exc
+        if not parsed or any(value<1 or value>50 for value in parsed):
+            raise HTTPException(status_code=400,detail="Use horizontes entre 1 e 50 candles")
+        refs=store.load_reference_candles(symbol,interval_seconds=interval_seconds)
+        try:
+            return validate_historical_hypotheses(
+                trades,
+                interval_seconds=interval_seconds,
+                tick_size=store.tick_size(symbol),
+                reference_candles=refs,
+                horizons=parsed,
+                include_synthetic=include_synthetic,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400,detail=str(exc)) from exc
 
     @app.get("/api/research/compare")
     def research_compare(symbol:str,target_start:datetime,candidate_start:datetime,interval_seconds:int=Query(60,ge=1,le=3600)):
