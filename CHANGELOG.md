@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.19.0 — 2026-10-08
+- adiciona composição da agressão por candle em volume e número de negócios;
+- calcula participação de compra agressora, venda agressora, RLP e volume sem classificação sobre o volume total;
+- calcula participação BUY/SELL apenas dentro da agressão direcionada conhecida;
+- classifica a relação entre direção do candle e direção do fluxo como `ALINHADO`, `DIVERGENTE`, `FLUXO_EQUILIBRADO`, `PRECO_NEUTRO` ou `DADOS_INSUFICIENTES`;
+- marca candles divergentes com prioridade de estudo baseada em cobertura e dominância do fluxo;
+- adiciona fatos `COMPOSICAO_AGRESSAO` e `DIVERGENCIA_PRECO_FLUXO` ao relatório interpretativo;
+- interface passa a exibir percentuais de BUY, SELL, RLP, cobertura, relação preço × fluxo e prioridade de estudo;
+- mantém RLP separado, sem inferir artificialmente lado comprador ou vendedor;
+- adiciona testes para candle de baixa com predominância de agressão compradora e para a composição percentual.
+
+
 ## 0.18.1 — 2026-10-08
 - corrige interpretação enganosa quando o CSV possui negócios, mas nenhum lado agressor BUY/SELL reconhecido;
 - cobertura de agressor 0% passa a significar explicitamente **dado de agressão indisponível**, e não “agressão igual a zero”;
