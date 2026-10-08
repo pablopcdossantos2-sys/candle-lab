@@ -675,6 +675,7 @@ class UiContractTests(unittest.TestCase):
             "dayCanvas","selectionLabel","selectionCount","locateBtn","sliceBtn",
             "indexProgressWrap","indexProgressPct","indexProgressText","indexProgressBar",
             "sliceProgressWrap","sliceProgressPct","sliceProgressText","sliceProgressBar",
+            "aggressionKpis","topBuyAggressors","topSellAggressors","aggressionBody","aggressionMethod",
         ]
         for control_id in required_ids:
             self.assertIn(f'id="{control_id}"', html)
