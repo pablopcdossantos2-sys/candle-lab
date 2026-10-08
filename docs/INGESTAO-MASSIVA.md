@@ -1,5 +1,7 @@
 # Ingestão massiva — v0.11
 
+> Esta camada continua suportada na v0.12, mas passou a ser um modo avançado de auditoria. O fluxo cotidiano recomendado é a extração seletiva documentada em `ARQUITETURA-FLUXO-SELETIVO.md`.
+
 ## Objetivo
 
 Processar exportações de Trades do Profit com centenas de MB sem materializar o pregão inteiro em memória.
