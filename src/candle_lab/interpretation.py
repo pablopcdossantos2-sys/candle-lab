@@ -82,7 +82,9 @@ def _phase_stats(ordered: list[Trade], tick_size: float) -> list[dict[str, objec
         directed = buy + sell
         delta = buy - sell
         dominance = abs(delta) / directed if directed else None
-        if directed == 0 or (dominance is not None and dominance < 0.15):
+        if directed == 0:
+            direction = "SEM_DADOS_AGRESSOR"
+        elif dominance is not None and dominance < 0.15:
             direction = "EQUILIBRADA"
         else:
             direction = "COMPRA" if delta > 0 else "VENDA"
@@ -115,8 +117,10 @@ def _phase_sentence(phase: dict[str, object]) -> str:
     direction = str(phase["direction"])
     delta = int(phase["delta"])
     move = int(phase["price_change_ticks"])
-    if direction == "EQUILIBRADA":
-        flow = "o fluxo agressor ficou relativamente equilibrado"
+    if direction == "SEM_DADOS_AGRESSOR":
+        flow = "o lado agressor não estava disponível nos negócios desta fase"
+    elif direction == "EQUILIBRADA":
+        flow = "o fluxo agressor conhecido ficou relativamente equilibrado"
     else:
         side = "compradora" if direction == "COMPRA" else "vendedora"
         flow = f"predominou a agressão {side}, com delta {_num(delta)}"
@@ -133,13 +137,17 @@ def _evidence_quality(aggression: dict[str, object], total_trades: int) -> dict[
     summary = aggression["summary"]
     aggressor_coverage = float(summary.get("aggressor_coverage") or 0.0)
     identity_coverage = float(summary.get("agent_identity_coverage") or 0.0)
-    score = 0.60 * aggressor_coverage + 0.25 * identity_coverage + 0.15 * min(total_trades / 100.0, 1.0)
-    if score >= 0.80:
-        label = "ALTA"
-    elif score >= 0.60:
-        label = "MODERADA"
+    if aggressor_coverage <= 0:
+        score = 0.0
+        label = "INDISPONIVEL"
     else:
-        label = "LIMITADA"
+        score = 0.60 * aggressor_coverage + 0.25 * identity_coverage + 0.15 * min(total_trades / 100.0, 1.0)
+        if score >= 0.80:
+            label = "ALTA"
+        elif score >= 0.60:
+            label = "MODERADA"
+        else:
+            label = "LIMITADA"
     return {
         "score": score,
         "label": label,
@@ -245,18 +253,34 @@ def interpret_candle(
         ),
         "data": geom,
     })
-    observed.append({
-        "code": "AGRESSAO_TOTAL",
-        "text": (
+    if known > 0:
+        aggression_text = (
             f"A agressão conhecida somou {_num(known)} contratos: {_num(buy)} compradores e "
             f"{_num(sell)} vendedores; delta {_num(delta)} e cobertura de agressor "
             f"{_pct(float(summary['aggressor_coverage']))}."
-        ),
+        )
+    else:
+        aggression_text = (
+            "Não foi possível calcular agressão compradora/vendedora para este candle porque "
+            "nenhum negócio possui lado agressor BUY/SELL reconhecido. "
+            f"O candle contém {_num(int(summary['total_volume']))} contratos de volume total, "
+            f"dos quais {_num(int(summary['rlp_volume']))} estão marcados como RLP e "
+            f"{_num(int(summary['unknown_volume']))} ficaram sem lado agressor identificável. "
+            "Cobertura de agressor: 0,0%. Isto significa dado de agressão indisponível, não agressão igual a zero."
+        )
+
+    observed.append({
+        "code": "AGRESSAO_TOTAL",
+        "text": aggression_text,
         "data": {
             "buy": buy,
             "sell": sell,
             "delta": delta,
             "coverage": summary["aggressor_coverage"],
+            "data_available": known > 0,
+            "rlp_volume": summary["rlp_volume"],
+            "unknown_volume": summary["unknown_volume"],
+            "total_volume": summary["total_volume"],
         },
     })
 
