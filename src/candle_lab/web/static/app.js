@@ -3,7 +3,7 @@ const state={
   symbols:[],sessions:[],candles:[],detail:null,replay:0,timer:null,selected:null,
   overview:[],overviewSessions:[],overviewCandles:[],overviewMeta:null,
   dragStart:null,dragCurrent:null,dragMode:null,selection:null,indexLocation:null,
-  zoom:1,viewStart:0
+  zoom:1,viewStart:0,historicalValidation:null
 };
 
 async function api(url,opts={}){
@@ -640,6 +640,8 @@ function fmtLift(value){
 }
 async function historicalValidation(){
   const symbol=$('symbolSelect').value;
+  state.historicalValidation=null;
+  $('downloadValidationBtn').disabled=true;
   const interval=$('intervalSelect').value;
   if(!symbol)return;
   const horizons=$('validationHorizons').value.trim()||'1,3,5';
@@ -648,6 +650,8 @@ async function historicalValidation(){
   try{
     const p=new URLSearchParams({symbol,interval_seconds:interval,horizons});
     const r=await api('/api/research/hypothesis-validation?'+p);
+    state.historicalValidation=r;
+    $('downloadValidationBtn').disabled=false;
     const input=r.input||{};
     const occurrences=r.hypothesis_occurrences||{};
     const occurrenceTotal=Object.values(occurrences).reduce((a,b)=>a+Number(b||0),0);
@@ -695,6 +699,23 @@ async function historicalValidation(){
   }finally{
     $('historicalValidationBtn').disabled=false;
   }
+}
+
+function downloadHistoricalValidation(){
+  const report=state.historicalValidation;
+  if(!report)return;
+  const symbol=(report.symbol||$('symbolSelect').value||'symbol').replace(/[^A-Za-z0-9_-]/g,'_');
+  const interval=report.interval_seconds||$('intervalSelect').value||60;
+  const stamp=new Date().toISOString().replace(/[:.]/g,'-');
+  const blob=new Blob([JSON.stringify(report,null,2)],{type:'application/json;charset=utf-8'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;
+  a.download='candle-lab-validacao-'+symbol+'-'+interval+'s-'+stamp+'.json';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
 }
 
 function familyLabel(x){return ({DIRECT_IMPULSE_UP:'Impulso direto de alta',DIRECT_IMPULSE_DOWN:'Impulso direto de baixa',SWEEP_LOW_REVERSAL:'Varredura da mínima → reversão',SWEEP_HIGH_REVERSAL:'Varredura da máxima → reversão',PULLBACK_CONTINUATION_UP:'Pullback → continuação de alta',PULLBACK_CONTINUATION_DOWN:'Pullback → continuação de baixa',V_SHAPED:'V-shaped',INVERTED_V:'V invertido',DOUBLE_EXCURSION:'Dupla excursão',OSCILLATING_RANGE:'Oscilação / range',UNCLASSIFIED:'Sem classificação',FLAT:'Flat'})[x]||x}
@@ -931,6 +952,7 @@ $('refreshBtn').onclick=refresh;$('symbolSelect').onchange=loadSessions;$('sessi
 $('playBtn').onclick=play;$('stepBtn').onclick=()=>{state.replay=Math.min(state.replay+1,state.detail.timeline.length);renderDetail()};$('resetBtn').onclick=()=>{clearInterval(state.timer);state.replay=0;renderDetail()};
 $('researchBtn').onclick=research;$('trajectoryBtn').onclick=trajectory;$('transitionBtn').onclick=transitions;
 $('historicalValidationBtn').onclick=historicalValidation;
+$('downloadValidationBtn').onclick=downloadHistoricalValidation;
 $('copyInterpretationBtn').onclick=copyInterpretation;
 
 $('importForm').onsubmit=async e=>{
