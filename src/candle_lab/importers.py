@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import re
 from dataclasses import asdict, dataclass, replace
 from datetime import datetime
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
@@ -95,6 +96,26 @@ def _decimal_number(raw: str) -> Decimal:
         raise ValueError(f"Número inválido: {raw}") from exc
 
 
+def _profit_decimal_number(raw: str) -> Decimal:
+    """Interpreta números exportados pelo Profit sem alterar a regra de CSVs genéricos.
+
+    No formato brasileiro do Profit, um valor como 205.935 representa 205935
+    (ponto como separador de milhar), enquanto 5.321,5 representa 5321.5.
+    """
+    text = raw.strip().replace(" ", "")
+    if not text:
+        raise ValueError("Número vazio")
+    if "," in text:
+        return _decimal_number(text)
+    if re.fullmatch(r"[+-]?\d{1,3}(?:\.\d{3})+", text):
+        text = text.replace(".", "")
+        try:
+            return Decimal(text)
+        except InvalidOperation as exc:
+            raise ValueError(f"Número inválido: {raw}") from exc
+    return _decimal_number(text)
+
+
 def _parse_datetime(ts_raw: str | None, date_raw: str | None, time_raw: str | None) -> datetime:
     candidates: list[str] = []
     if ts_raw:
@@ -168,7 +189,7 @@ def _looks_like_profit_headerless_trade(row: list[str]) -> bool:
     try:
         datetime.strptime(row[1].strip(), "%d/%m/%y")
         datetime.strptime(row[2].strip(), "%H:%M:%S")
-        _decimal_number(row[4])
+        _profit_decimal_number(row[4])
         qty = _decimal_number(row[5])
         if qty != qty.to_integral_value() or qty <= 0:
             return False
@@ -240,7 +261,7 @@ def _import_profit_headerless(
             row_symbol = user_symbol or file_symbol
             ts = _parse_datetime(None, row[1], row[2])
             try:
-                price = _decimal_number(row[4])
+                price = _profit_decimal_number(row[4])
                 ratio = price / tick
                 price_ticks = int(ratio.quantize(Decimal("1"), rounding=ROUND_HALF_UP))
                 if abs(ratio - Decimal(price_ticks)) > Decimal("0.000001"):
@@ -347,6 +368,7 @@ def import_csv_with_report(path: str | Path, *, symbol: str | None, tick_size: f
         if not reader.fieldnames:
             raise ValueError("CSV sem cabeçalho")
 
+        profile = _profile(reader.fieldnames)
         header_norm = {_norm_header(h): h for h in reader.fieldnames if h is not None}
         known_aliases = {
             "timestamp","datahora","data hora","datetime","data","date","session date","pregao",
@@ -380,7 +402,7 @@ def import_csv_with_report(path: str | Path, *, symbol: str | None, tick_size: f
 
             try:
                 ts = _parse_datetime(ts_raw, date_raw, time_raw)
-                price = _decimal_number(price_raw)
+                price = _profit_decimal_number(price_raw) if profile.startswith("Nelogica / Profit") else _decimal_number(price_raw)
                 price_ticks_decimal = price / tick
                 price_ticks = int(price_ticks_decimal.quantize(Decimal("1"), rounding=ROUND_HALF_UP))
                 if abs(price_ticks_decimal - Decimal(price_ticks)) > Decimal("0.000001"):
@@ -416,7 +438,6 @@ def import_csv_with_report(path: str | Path, *, symbol: str | None, tick_size: f
             ))
             original_timestamps.append(ts)
 
-        profile = _profile(reader.fieldnames)
 
     if not parsed:
         raise ValueError("Nenhum negócio encontrado no CSV")
