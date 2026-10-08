@@ -116,6 +116,8 @@ def build_time_index(
     rows = 0
     first_ts: datetime | None = None
     last_ts: datetime | None = None
+    last_progress_byte = 0
+    progress_step_bytes = 8 * 1024 * 1024
 
     physical_line = 0
     with source.open("rb") as handle:
@@ -174,7 +176,7 @@ def build_time_index(
                 item["trades"] = int(item["trades"]) + 1
                 item["last_physical_timestamp"] = ts.isoformat()
 
-            if progress and rows % 250_000 == 0:
+            if progress and byte_end - last_progress_byte >= progress_step_bytes:
                 progress({
                     "phase": "index",
                     "rows": rows,
@@ -183,6 +185,17 @@ def build_time_index(
                     "percent": round(byte_end / max(stat.st_size, 1) * 100, 2),
                     "minutes_indexed": len(buckets),
                 })
+                last_progress_byte = byte_end
+
+    if progress:
+        progress({
+            "phase": "index",
+            "rows": rows,
+            "bytes_processed": stat.st_size,
+            "bytes_total": stat.st_size,
+            "percent": 100.0,
+            "minutes_indexed": len(buckets),
+        })
 
     if not rows or first_ts is None or last_ts is None:
         raise ValueError("Nenhuma linha válida encontrada no CSV")
