@@ -353,6 +353,52 @@ class SelectiveSliceTests(unittest.TestCase):
             self.assertEqual(second_insert["duplicates"],2)
             self.assertEqual(len(store.load_trades("WINSEL")),5)
 
+    def test_headered_profit_file_with_extra_column_is_indexed_and_sliced(self):
+        content = (
+            "Ativo;Data;Hora;Número do Negócio;Agente Comprador;Preço;Quantidade;Agente Vendedor;Agressor\n"
+            "WINHDR;07/10/26;10:03:00;1006;3 - Comprador;1.030,00;1;85 - Vendedor;Comprador\n"
+            "WINHDR;07/10/26;10:02:30;1005;3 - Comprador;1.025,00;2;85 - Vendedor;Comprador\n"
+            "WINHDR;07/10/26;10:02:00;1004;3 - Comprador;1.020,00;1;85 - Vendedor;Vendedor\n"
+            "WINHDR;07/10/26;10:01:59;1003;3 - Comprador;1.015,00;3;85 - Vendedor;RLP\n"
+            "WINHDR;07/10/26;10:01:00;1002;3 - Comprador;1.010,00;2;85 - Vendedor;Vendedor\n"
+            "WINHDR;07/10/26;10:00:59;1001;3 - Comprador;1.005,00;1;85 - Vendedor;Comprador\n"
+        )
+        tz = ZoneInfo("America/Sao_Paulo")
+        start = datetime(2026,10,7,10,1,tzinfo=tz)
+        end = datetime(2026,10,7,10,3,tzinfo=tz)
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = root / "WINHDR_FULL.csv"
+            source.write_text(content, encoding="cp1252")
+
+            index = build_time_index(source,index_dir=root/"indexes",symbol="WINHDR")
+            self.assertEqual(index.rows,6)
+            self.assertTrue(index.source_has_header)
+            self.assertEqual(index.source_header_line,1)
+            self.assertIn("cabeçalho",index.layout_profile)
+            self.assertEqual(index.source_order,"DESCENDING")
+
+            located = locate_interval(index,start=start,end=end)
+            self.assertEqual((located["source_row_min"],located["source_row_max"]),(3,6))
+            self.assertEqual((located["chronological_open_row"],located["chronological_close_row"]),(6,3))
+            self.assertEqual(located["trades"],4)
+
+            output = root / "slice.csv"
+            sliced = slice_profit_trades(
+                source,start=start,end=end,output_path=output,symbol="WINHDR",
+                seek_byte_start=located["byte_start"],seek_byte_end=located["byte_end"],
+                source_row_base=located["source_row_min"]-1,
+            )
+            self.assertTrue(sliced.source_has_header)
+            self.assertEqual((sliced.first_source_row,sliced.last_source_row),(3,6))
+            trades, report = import_csv_with_report(
+                output,symbol="WINHDR",tick_size=5.0,source="selected_slice"
+            )
+            self.assertEqual(len(trades),4)
+            self.assertEqual(report.source_order,"DESCENDING")
+            self.assertEqual([t.ts.strftime("%H:%M:%S") for t in trades],
+                             ["10:01:00","10:01:59","10:02:00","10:02:30"])
+
     def test_time_index_locates_exact_rows_and_indexed_slice_matches(self):
         content = (
             "WINIDX,07/10/26,10:03:00,3 - Comprador,1030,1,85 - Vendedor,Comprador\n"
