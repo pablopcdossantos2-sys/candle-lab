@@ -249,7 +249,22 @@ Preparar índice e localizar
 
 ### Na primeira utilização daquele CSV
 
-O Candle Lab lê o arquivo completo uma vez e cria um índice leve em:
+O Candle Lab lê o arquivo completo uma vez e cria um índice leve. Durante essa leitura, a interface mostra uma barra de progresso com:
+
+- porcentagem já lida;
+- quantidade de linhas processadas;
+- MB/GB já percorridos em relação ao tamanho total;
+- quantidade de minutos já indexados.
+
+Exemplo:
+
+~~~text
+37,4% · 2.850.000 linhas · 268,1 MB de 717,4 MB · 214 minutos indexados
+~~~
+
+A porcentagem é calculada pelos **bytes efetivamente lidos do arquivo**, não por uma estimativa de negócios por minuto.
+
+O índice é salvo em:
 
 ~~~text
 data\indexes
@@ -385,8 +400,17 @@ O horário precisa ser uma fronteira válida dos candles do timeframe importado.
 
 ### O índice demora na primeira vez
 
-Isso é esperado para um CSV muito grande. A leitura integral ocorre apenas para construir o índice. Depois ele é reutilizado.
+Isso é esperado para um CSV muito grande. Observe a barra de porcentagem exibida acima do resultado: ela informa o avanço real da leitura pelos bytes processados.
+
+A leitura integral ocorre apenas para construir o índice. Depois ele é reutilizado e a interface informa **Índice reutilizado — nenhuma nova leitura integral foi necessária**.
 
 ### A Biblioteca de microestrutura está vazia
 
 O gráfico diário pode existir sem dados Tick. A biblioteca só recebe microestrutura depois de **Recortar e importar intervalo localizado**.
+
+
+### Erro envolvendo preço como 205.935
+
+Nas exportações brasileiras do Profit, um valor como `205.935` para o WIN significa **205935 pontos**: o ponto é separador de milhar, não separador decimal.
+
+A partir da v0.14.2, o perfil Profit interpreta esse formato corretamente antes de validar o tick. A regra não é aplicada indiscriminadamente a CSVs genéricos.
