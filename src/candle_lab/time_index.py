@@ -174,6 +174,13 @@ def build_time_index(
     if not rows or first_ts is None or last_ts is None:
         raise ValueError("Nenhuma linha válida encontrada no CSV")
 
+    final_stat = source.stat()
+    if final_stat.st_size != stat.st_size or final_stat.st_mtime_ns != stat.st_mtime_ns:
+        raise RuntimeError(
+            "O CSV foi alterado durante a indexação. Feche qualquer programa que esteja modificando "
+            "o arquivo e execute a preparação do índice novamente."
+        )
+
     # Mantemos ordem cronológica no arquivo de índice, independentemente da ordem física da fonte.
     minute_entries = tuple(MinuteLocator(**buckets[key]) for key in sorted(buckets))
     index = TimeIndex(
