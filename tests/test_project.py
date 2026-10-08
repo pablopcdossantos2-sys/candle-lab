@@ -630,7 +630,7 @@ class SessionQualityPersistenceTests(unittest.TestCase):
             first=qualities[0]
             payload=store.get_session_quality("WINQUAL",first.session_date)
             self.assertIsNotNone(payload)
-            self.assertEqual(payload["model_version"],first.to_record()["model_version"] if "model_version" in first.to_record() else payload["model_version"])
+            self.assertTrue(payload["model_version"])
             with store.connect() as con:
                 row=con.execute(
                     "SELECT quality_key,symbol,session_date,model_version,payload_json,updated_at "
