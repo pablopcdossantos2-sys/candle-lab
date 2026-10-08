@@ -2,7 +2,7 @@
 
 **Laboratório local para investigar como candles de futuros da B3 são formados negócio a negócio.**
 
-Versão atual: **0.14.3**
+Versão atual: **0.14.4**
 
 O Candle Lab B3 nasceu de uma pergunta simples: **dois candles visualmente parecidos necessariamente foram formados da mesma maneira?**
 
@@ -679,3 +679,9 @@ A interface mostra:
 - progresso das fases de normalização, gravação e atualização da biblioteca.
 
 Durante a extração, a porcentagem é derivada dos bytes reais da faixa localizada. As fases posteriores avançam por marcos concluídos da própria operação.
+
+## Correção de persistência da qualidade — v0.14.4
+
+A v0.14.4 corrige a gravação de `session_quality` no DuckDB. O erro ocorria depois que o recorte já havia sido importado, durante o recálculo da qualidade do pregão.
+
+A consulta agora usa explicitamente as seis colunas da tabela e cinco parâmetros mais `current_timestamp`, evitando a divergência de contagem observada no teste real.
