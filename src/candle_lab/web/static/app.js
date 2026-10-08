@@ -70,6 +70,8 @@ function invalidateLocatedSlice(){
   state.indexLocation=null;
   $('sliceBtn').disabled=true;
   $('lineMapWrap').classList.add('hidden');
+  $('indexProgressWrap').classList.add('hidden');
+  $('indexProgressBar').style.width='0%';
   $('sliceResult').textContent='Prepare primeiro o índice temporal para esta seleção.';
 }
 
@@ -430,6 +432,48 @@ $('panRightBtn').onclick=()=>panChart(1);
 $('resetZoomBtn').onclick=()=>{state.zoom=1;state.viewStart=0;$('zoomRange').value='1';updateZoomStatus();drawDayChart()};
 $('zoomSelectionBtn').onclick=zoomToSelection;
 
+function formatBytes(value){
+  let bytes=Number(value||0);
+  if(!Number.isFinite(bytes)||bytes<=0)return '0 B';
+  const units=['B','KB','MB','GB','TB'];
+  let i=0;
+  while(bytes>=1024&&i<units.length-1){bytes/=1024;i++}
+  return bytes.toLocaleString('pt-BR',{maximumFractionDigits:i===0?0:1})+' '+units[i];
+}
+
+function sleep(ms){return new Promise(resolve=>setTimeout(resolve,ms))}
+
+function showIndexProgress(progress={},status='running'){
+  const wrap=$('indexProgressWrap');
+  wrap.classList.remove('hidden');
+  const pct=Math.max(0,Math.min(100,Number(progress.percent||0)));
+  $('indexProgressPct').textContent=pct.toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1})+'%';
+  $('indexProgressBar').style.width=pct+'%';
+  const rows=Number(progress.rows||0),done=Number(progress.bytes_processed||0),total=Number(progress.bytes_total||0);
+  const minutes=Number(progress.minutes_indexed||0);
+  if(status==='queued'){
+    $('indexProgressText').textContent='Preparando a leitura do arquivo…';
+  }else if(total>0){
+    $('indexProgressText').textContent=
+      n(rows,0)+' linhas · '+formatBytes(done)+' de '+formatBytes(total)+' · '+n(minutes,0)+' minutos indexados';
+  }else{
+    $('indexProgressText').textContent='Lendo o arquivo… '+n(rows,0)+' linhas processadas';
+  }
+}
+
+async function runIndexJob(payload){
+  const started=await api('/api/time-index/start',{
+    method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)
+  });
+  while(true){
+    const job=await api('/api/time-index/jobs/'+encodeURIComponent(started.job_id));
+    showIndexProgress(job.progress||{},job.status);
+    if(job.status==='completed')return job.result;
+    if(job.status==='failed')throw new Error(job.error||'Falha durante a indexação.');
+    await sleep(450);
+  }
+}
+
 function selectedCandleStarts(){
   if(!state.selection)return[];
   return state.overviewCandles
@@ -456,27 +500,38 @@ $('locateBtn').onclick=async()=>{
   const path=$('localTradesPath').value.trim();
   if(!path){$('indexResult').textContent='Cole primeiro o caminho do CSV grande de Trades.';return}
   $('locateBtn').disabled=true;$('sliceBtn').disabled=true;
-  $('indexResult').textContent='Preparando o índice temporal. Na primeira vez o arquivo inteiro é lido uma única vez; nas próximas seleções o índice será reutilizado…';
+  $('lineMapWrap').classList.add('hidden');
+  showIndexProgress({percent:0,rows:0,bytes_processed:0,bytes_total:0,minutes_indexed:0},'queued');
+  $('indexResult').textContent='Preparando o índice temporal. O progresso da leitura aparece acima.';
   try{
     const payload={
       source_path:path,symbol:state.overviewMeta.symbol,start:state.selection.start,end:state.selection.end,
       interval_seconds:state.overviewMeta.interval_seconds,candle_starts:selectedCandleStarts()
     };
-    const r=await api('/api/time-index/locate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    const r=await runIndexJob(payload);
     state.indexLocation=r;
     renderLineMap(r);
     const mode=r.index_built_now?'Índice criado agora':'Índice existente reutilizado';
+    showIndexProgress({
+      percent:100,rows:r.index.rows,bytes_processed:r.index.source_size,bytes_total:r.index.source_size,
+      minutes_indexed:r.index.minutes_indexed
+    },'completed');
+    $('indexProgressText').textContent=r.index_built_now
+      ? 'Leitura concluída · '+n(r.index.rows,0)+' linhas · '+formatBytes(r.index.source_size)
+      : 'Índice reutilizado · nenhuma nova leitura integral foi necessária.';
     $('indexResult').textContent=
       mode+'.\n'+
-      'Arquivo: '+n(r.index.rows,0)+' linhas · '+r.index.minutes_indexed+' minutos indexados.\n'+
+      'Layout: '+(r.index.layout_profile||'—')+'.\n'+
+      'Arquivo: '+n(r.index.rows,0)+' linhas · '+r.index.minutes_indexed+' minutos indexados · '+formatBytes(r.index.source_size)+'.\n'+
       'Seleção: linhas '+n(r.selection.source_row_min,0)+'–'+n(r.selection.source_row_max,0)+
-      ' · '+n(r.selection.trades,0)+' negócios · '+n(r.selection.byte_length,0)+' bytes.\n'+
+      ' · '+n(r.selection.trades,0)+' negócios · '+formatBytes(r.selection.byte_length)+'.\n'+
       'Abertura cronológica na linha '+n(r.selection.chronological_open_row,0)+
       '; fechamento cronológico na linha '+n(r.selection.chronological_close_row,0)+'.';
     $('sliceBtn').disabled=false;
     $('sliceResult').textContent='Linhas localizadas. Clique em “Recortar e importar intervalo localizado”.';
   }catch(err){
     state.indexLocation=null;$('lineMapWrap').classList.add('hidden');
+    $('indexProgressWrap').classList.add('hidden');
     $('indexResult').textContent='Erro: '+err.message;
   }finally{$('locateBtn').disabled=false}
 };
