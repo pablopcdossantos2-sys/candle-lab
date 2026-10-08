@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from .importers import import_csv_with_report
@@ -102,7 +102,7 @@ def _locate_lines(args):
         starts=[]
         cursor=start
         while cursor<end:
-            starts.append(cursor);cursor+=__import__("datetime").timedelta(seconds=args.interval)
+            starts.append(cursor);cursor+=timedelta(seconds=args.interval)
         payload["candles"]=locate_candles(index,candle_starts=starts,interval_seconds=args.interval)
     print(json.dumps(payload,ensure_ascii=False,default=str,indent=2))
 
