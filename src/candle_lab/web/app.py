@@ -193,7 +193,7 @@ def create_app(db_path:str|Path=DEFAULT_DB)->FastAPI:
                 source_rows=range(sliced.first_source_row,sliced.last_source_row+1)
             result=store.add_selected_slice_trades(
                 trades,tick_size=request.tick_size,
-                source_fingerprint=sliced.source_fingerprint,source_rows=source_rows
+                source_fingerprint=index.source_sha256,source_rows=source_rows
             )
             store.record_import_batch(
                 data_kind="selected_slice",source="profit_selected_slice",file_name=Path(sliced.output_path).name,
