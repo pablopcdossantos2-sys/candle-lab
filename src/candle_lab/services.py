@@ -5,6 +5,7 @@ from datetime import datetime
 from math import log
 
 from .aggression import aggression_analysis
+from .aggression_waves import aggression_wave_analysis
 from .candles import build_candles, group_trades_by_candle, trade_sort_key
 from .counterfactual import generate_ohlc_path
 from .metrics import CandleDNA, candle_dna
@@ -125,6 +126,7 @@ def candle_detail_payload(trades: list[Trade], interval_seconds: int, tick_size:
             for p, stats in sorted(volume_by_price.items(), reverse=True)
         ],
         "aggression": aggression_analysis(ordered, tick_size),
+        "aggression_waves": aggression_wave_analysis(ordered, tick_size),
         "counterfactual": {
             "label": "SIMULAÇÃO CONTRAFACTUAL — NÃO É REPLAY HISTÓRICO",
             "seed": seed,
