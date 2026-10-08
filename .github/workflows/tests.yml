@@ -28,6 +28,9 @@ jobs:
       - name: Executar testes
         run: python -m unittest discover -s tests -v
 
+      - name: Validar JavaScript da interface
+        run: node --check src/candle_lab/web/static/app.js
+
       - name: Validar iniciador PowerShell
         if: runner.os == 'Windows'
         shell: pwsh
