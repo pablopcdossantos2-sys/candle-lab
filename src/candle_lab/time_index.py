@@ -229,6 +229,11 @@ def locate_interval(index: TimeIndex, *, start: datetime, end: datetime) -> dict
         raise ValueError("start e end precisam possuir timezone")
     if end <= start:
         raise ValueError("O final do intervalo deve ser posterior ao início")
+    if start.second or start.microsecond or end.second or end.microsecond:
+        raise ValueError(
+            "O índice M1 localiza intervalos alinhados ao minuto. "
+            "Selecione candles do gráfico para obter limites :00 exatos."
+        )
 
     selected = [
         item for item in index.buckets
