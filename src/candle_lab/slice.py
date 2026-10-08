@@ -29,7 +29,7 @@ class SliceResult:
         return asdict(self)
 
 
-def _probe(path: Path, max_rows: int = 2048) -> tuple[str, csv.Dialect, str, str]:
+def _probe(path: Path, max_rows: int = 20_000) -> tuple[str, csv.Dialect, str, str]:
     encoding = _detect_encoding(path)
     with path.open("r", encoding=encoding, newline="") as handle:
         sample = handle.read(8192)
@@ -50,6 +50,9 @@ def _probe(path: Path, max_rows: int = 2048) -> tuple[str, csv.Dialect, str, str
                 raise ValueError(f"Layout inesperado: {len(row)} colunas; esperado=8")
             symbols.add(row[0].strip().upper())
             timestamps.append(_parse_datetime(None, row[1], row[2]))
+            distinct_times=len({ts for ts in timestamps})
+            if len(timestamps) >= 2048 and distinct_times >= 3:
+                break
             if len(timestamps) >= max_rows:
                 break
 
