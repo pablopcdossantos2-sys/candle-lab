@@ -410,13 +410,82 @@ function renderAggression(d){
   $('aggressionMethod').textContent=a.method+' '+a.intensity_method+' '+a.limitations;
 }
 
+function waveTypeLabel(x){
+  return ({EXAUSTAO:'Exaustão',NEUTRALIZACAO:'Neutralização',TROCA_CONTROLE:'Troca de controle'})[x]||x;
+}
+function waveOutcomeLabel(x){
+  return ({REVERSAO_COMPATIVEL:'Reversão compatível',CONTINUACAO:'Continuação',ESTAGNACAO_OU_DISPUTA:'Estagnação / disputa',SEM_JANELA_POSTERIOR:'Sem janela posterior'})[x]||x;
+}
+function drawWaveTerminationMarkers(canvas,d){
+  const waves=d.aggression_waves;if(!waves||!waves.termination_events||!waves.termination_events.length)return;
+  const ctx=canvas.getContext('2d'),w=canvas.width,h=canvas.height;
+  const total=Math.max(d.timeline.length-1,1);
+  const visibleEvents=waves.termination_events.filter(e=>e.end_index<state.replay);
+  visibleEvents.forEach((e,i)=>{
+    const x=18+(w-36)*(e.end_index/total);
+    ctx.save();
+    ctx.setLineDash([5,4]);
+    ctx.lineWidth=2;
+    ctx.strokeStyle=e.side==='BUY'?'#f0b966':'#c995ff';
+    ctx.beginPath();ctx.moveTo(x,12);ctx.lineTo(x,h-12);ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle=e.side==='BUY'?'#f0b966':'#c995ff';
+    ctx.font='bold 11px Segoe UI';
+    ctx.fillText('T'+(i+1),Math.min(w-28,x+4),18);
+    ctx.restore();
+  });
+}
+function renderAggressionWaves(d){
+  const w=d.aggression_waves;if(!w)return;
+  const detected=(w.termination_events||[]).filter(e=>e.end_index<state.replay);
+  const completeReplay=state.replay>=d.timeline.length;
+  const sm=w.summary||{};
+  const items=[
+    ['Términos',n(detected.length,0)],
+    ['Exaustão',n(detected.filter(e=>e.termination_type==='EXAUSTAO').length,0)],
+    ['Neutralização',n(detected.filter(e=>e.termination_type==='NEUTRALIZACAO').length,0)],
+    ['Troca de controle',n(detected.filter(e=>e.termination_type==='TROCA_CONTROLE').length,0)]
+  ];
+  $('waveSummary').innerHTML=items.map(v=>'<div class="kpi"><span>'+v[0]+'</span><strong>'+v[1]+'</strong></div>').join('');
+
+  $('waveBody').innerHTML=detected.map((e,i)=>{
+    const agent=e.top_aggressors&&e.top_aggressors.length
+      ? esc(e.top_aggressors[0].agent)+' · '+n(e.top_aggressors[0].quantity,0)
+      : '—';
+    const post=completeReplay
+      ? waveOutcomeLabel(e.post_event.outcome)+'<br><small>reversão máx. '+n(e.post_event.max_reversal_ticks,0)+' ticks · continuação máx. '+n(e.post_event.max_continuation_ticks,0)+' ticks</small>'
+      : '<span class="expost-hidden">Disponível ao final do replay</span>';
+    return '<tr>'+
+      '<td>'+clock(e.start_ts)+'<br><small>#'+n(e.start_trade_number,0)+'</small></td>'+
+      '<td><strong>'+e.side+'</strong></td>'+
+      '<td>'+clock(e.end_ts)+'<br><small>#'+n(e.end_trade_number,0)+' · T'+(i+1)+'</small></td>'+
+      '<td>'+waveTypeLabel(e.termination_type)+'</td>'+
+      '<td>'+pct(e.pressure_decay)+'<br><small>pico '+n(e.peak_side_window_qty,0)+' → '+n(e.end_window_side_qty,0)+'</small></td>'+
+      '<td>'+n(e.end_price)+'</td>'+
+      '<td>'+agent+'</td>'+
+      '<td>'+post+'</td>'+
+    '</tr>';
+  }).join('')||'<tr><td colspan="8">Nenhum término de onda confirmado até este ponto do replay.</td></tr>';
+
+  if(completeReplay&&w.open_episode){
+    $('openWaveBox').classList.remove('hidden');
+    const o=w.open_episode,agent=o.top_aggressors&&o.top_aggressors.length?o.top_aggressors[0].agent:'—';
+    $('openWaveBox').textContent='O candle terminou com uma onda '+o.side+' ainda aberta. Início '+clock(o.start_ts)+' · principal agressor '+agent+'.';
+  }else{
+    $('openWaveBox').classList.add('hidden');
+    $('openWaveBox').textContent='';
+  }
+  $('waveMethod').textContent=w.method+' '+w.limitations+' Janela: '+w.parameters.window_trades+' negócios; a reação posterior é EX-POST e não participa da detecção.';
+}
+
 function renderDetail(){
   const d=state.detail;if(!d)return;const dna=d.dna;
   const items=[['Range',dna.range_ticks+' ticks'],['Eficiência',pct(dna.directional_efficiency)],['Reversões',dna.reversals],['Revisitas',dna.total_revisits],['VWAP',n(dna.vwap)],['Trades/s',n(dna.trades_per_second,2)]];
   $('dnaKpis').innerHTML=items.map(v=>'<div class="kpi"><span>'+v[0]+'</span><strong>'+v[1]+'</strong></div>').join('');
-  draw($('pathCanvas'),d.timeline,state.replay);draw($('counterCanvas'),d.counterfactual.prices);
+  draw($('pathCanvas'),d.timeline,state.replay);drawWaveTerminationMarkers($('pathCanvas'),d);draw($('counterCanvas'),d.counterfactual.prices);
   $('volumeLevels').innerHTML=d.volume_by_price.slice(0,40).map(x=>'<div class="level"><span>'+n(x.price)+'</span><strong>'+n(x.volume,0)+' · Δ '+n(x.delta,0)+'</strong></div>').join('');
   renderAggression(d);
+  renderAggressionWaves(d);
   const shown=d.timeline.slice(0,state.replay);
   $('tradeBody').innerHTML=shown.slice(-250).map(t=>'<tr><td>'+(t.index+1)+'</td><td>'+clock(t.ts)+'</td><td>'+n(t.price)+'</td><td>'+t.quantity+'</td><td>'+t.aggressor+'</td><td>'+esc(t.buyer_id||'—')+'</td><td>'+esc(t.seller_id||'—')+'</td></tr>').join('');
   $('replayState').textContent=state.replay+'/'+d.timeline.length+' negócios';
