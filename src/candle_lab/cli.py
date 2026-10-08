@@ -13,6 +13,7 @@ from .trajectory import TRAJECTORY_MODEL_VERSION, analyze_trajectory_families
 from .transitions import TRANSITION_MODEL_VERSION, analyze_stability_and_transitions
 from .bulk import bulk_import_profit_file, export_session_parquet, reconcile_store_references
 from .slice import slice_profit_trades
+from .time_index import ensure_time_index, index_summary, locate_candles, locate_interval
 
 
 def _analyze(args):
@@ -70,14 +71,60 @@ def _empirical_validate(args):
     print(json.dumps(payload, ensure_ascii=False, default=str, indent=2))
 
 
+def _index_progress(info: dict[str, object]) -> None:
+    if info.get("phase") != "index":
+        return
+    print(
+        f"\rIndexando: {float(info.get('percent') or 0):6.2f}% · "
+        f"{int(info.get('rows') or 0):,} linhas · "
+        f"{int(info.get('minutes_indexed') or 0):,} minutos",
+        end="",flush=True,
+    )
+
+
+def _index_trades(args):
+    index,built=ensure_time_index(
+        args.trades_csv,index_dir=args.index_dir,symbol=args.symbol or None,progress=_index_progress
+    )
+    if built:print()
+    print(json.dumps({"built_now":built,**index_summary(index)},ensure_ascii=False,default=str,indent=2))
+
+
+def _locate_lines(args):
+    start=datetime.fromisoformat(args.start)
+    end=datetime.fromisoformat(args.end)
+    index,built=ensure_time_index(
+        args.trades_csv,index_dir=args.index_dir,symbol=args.symbol or None,progress=_index_progress
+    )
+    if built:print()
+    payload={"built_now":built,"index":index_summary(index),"selection":locate_interval(index,start=start,end=end)}
+    if args.interval:
+        starts=[]
+        cursor=start
+        while cursor<end:
+            starts.append(cursor);cursor+=__import__("datetime").timedelta(seconds=args.interval)
+        payload["candles"]=locate_candles(index,candle_starts=starts,interval_seconds=args.interval)
+    print(json.dumps(payload,ensure_ascii=False,default=str,indent=2))
+
+
 def _slice_trades(args):
     start=datetime.fromisoformat(args.start)
     end=datetime.fromisoformat(args.end)
+    index,built=ensure_time_index(
+        args.trades_csv,index_dir=args.index_dir,symbol=args.symbol or None,progress=_index_progress
+    )
+    if built:print()
+    located=locate_interval(index,start=start,end=end)
     result=slice_profit_trades(
         args.trades_csv,start=start,end=end,
-        output_path=args.output or None,symbol=args.symbol or None
+        output_path=args.output or None,symbol=args.symbol or None,
+        seek_byte_start=int(located["byte_start"]),seek_byte_end=int(located["byte_end"]),
+        source_row_base=int(located["source_row_min"])-1,
     )
-    print(json.dumps(result.to_dict(),ensure_ascii=False,default=str,indent=2))
+    print(json.dumps({
+        "index_built_now":built,"index":index_summary(index),"locator":located,
+        "slice":result.to_dict()
+    },ensure_ascii=False,default=str,indent=2))
 
 
 def _bulk_progress(info: dict[str, object]) -> None:
@@ -286,7 +333,9 @@ def main():
     p=sub.add_parser("import");p.add_argument("csv");p.add_argument("--symbol",default="");p.add_argument("--tick-size",type=float,required=True);p.add_argument("--source",default="csv");p.add_argument("--db",default="data/candle_lab.duckdb");p.add_argument("--parquet",default="data/parquet/trades.parquet")
     p=sub.add_parser("reconcile");p.add_argument("trades_csv");p.add_argument("reference_csv");p.add_argument("--symbol",default="");p.add_argument("--tick-size",type=float,required=True);p.add_argument("--interval",type=int,required=True);p.add_argument("--trade-source",default="profit_csv");p.add_argument("--reference-source",default="profit_ohlc_reference")
     p=sub.add_parser("empirical-validate");p.add_argument("trades_csv");p.add_argument("reference_csv");p.add_argument("--symbol",default="");p.add_argument("--tick-size",type=float,required=True);p.add_argument("--interval",type=int,default=60);p.add_argument("--trade-source",default="profit_csv");p.add_argument("--reference-source",default="profit_ohlc_reference")
-    p=sub.add_parser("slice-trades");p.add_argument("trades_csv");p.add_argument("--start",required=True);p.add_argument("--end",required=True);p.add_argument("--symbol",default="");p.add_argument("--output",default="")
+    p=sub.add_parser("index-trades");p.add_argument("trades_csv");p.add_argument("--symbol",default="");p.add_argument("--index-dir",default="data/indexes")
+    p=sub.add_parser("locate-lines");p.add_argument("trades_csv");p.add_argument("--start",required=True);p.add_argument("--end",required=True);p.add_argument("--symbol",default="");p.add_argument("--interval",type=int,default=60);p.add_argument("--index-dir",default="data/indexes")
+    p=sub.add_parser("slice-trades");p.add_argument("trades_csv");p.add_argument("--start",required=True);p.add_argument("--end",required=True);p.add_argument("--symbol",default="");p.add_argument("--output",default="");p.add_argument("--index-dir",default="data/indexes")
     p=sub.add_parser("bulk-import");p.add_argument("trades_csv");p.add_argument("--symbol",default="");p.add_argument("--tick-size",type=float,required=True);p.add_argument("--source",default="profit_bulk_csv");p.add_argument("--chunk-rows",type=int,default=100000);p.add_argument("--no-resume",action="store_true");p.add_argument("--db",default="data/candle_lab.duckdb")
     p=sub.add_parser("bulk-validate");p.add_argument("trades_csv");p.add_argument("reference_csv");p.add_argument("--symbol",default="");p.add_argument("--tick-size",type=float,required=True);p.add_argument("--interval",type=int,default=60);p.add_argument("--chunk-rows",type=int,default=100000);p.add_argument("--trade-source",default="profit_bulk_csv");p.add_argument("--reference-source",default="profit_ohlc_reference");p.add_argument("--no-resume",action="store_true");p.add_argument("--db",default="data/candle_lab.duckdb");p.add_argument("--parquet-dir",default="data/parquet");p.add_argument("--report",default="")
     p=sub.add_parser("quality");p.add_argument("--symbol",required=True);p.add_argument("--db",default="data/candle_lab.duckdb")
@@ -295,7 +344,7 @@ def main():
     p=sub.add_parser("transitions");p.add_argument("--symbol",required=True);p.add_argument("--interval",type=int,default=60);p.add_argument("--clusters",type=int,default=0);p.add_argument("--sample-points",type=int,default=25);p.add_argument("--start",default="");p.add_argument("--include-low-quality",action="store_true");p.add_argument("--db",default="data/candle_lab.duckdb")
     p=sub.add_parser("serve");p.add_argument("--host",default="127.0.0.1");p.add_argument("--port",type=int,default=8765);p.add_argument("--db",default=None)
     args=parser.parse_args()
-    actions={"analyze":_analyze,"import":_import,"reconcile":_reconcile,"empirical-validate":_empirical_validate,"slice-trades":_slice_trades,"bulk-import":_bulk_import,"bulk-validate":_bulk_validate,"quality":_quality,"research":_research,"trajectory":_trajectory,"transitions":_transitions,"serve":_serve}
+    actions={"analyze":_analyze,"import":_import,"reconcile":_reconcile,"empirical-validate":_empirical_validate,"index-trades":_index_trades,"locate-lines":_locate_lines,"slice-trades":_slice_trades,"bulk-import":_bulk_import,"bulk-validate":_bulk_validate,"quality":_quality,"research":_research,"trajectory":_trajectory,"transitions":_transitions,"serve":_serve}
     actions.get(args.command,lambda _:parser.print_help())(args)
 
 if __name__=="__main__":main()
