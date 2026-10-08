@@ -7,6 +7,7 @@ from pathlib import Path
 from candle_lab.aggression import aggression_analysis
 from candle_lab.aggression_waves import aggression_wave_analysis
 from candle_lab.interpretation import interpret_candle
+from candle_lab.historical_validation import validate_historical_hypotheses
 from candle_lab.candles import build_candles
 from candle_lab.counterfactual import generate_ohlc_path
 from candle_lab.metrics import candle_dna
@@ -273,6 +274,104 @@ class CandleInterpretationTests(unittest.TestCase):
         self.assertIn("interpretation",payload)
         self.assertIn("closing_synthesis",payload["interpretation"])
         self.assertTrue(payload["interpretation"]["label"].startswith("RELATORIO_INTERPRETATIVO"))
+
+
+class HistoricalValidationTests(unittest.TestCase):
+    def _rising_library(self, *, source="profit_selected_slice", candles=8):
+        tz=ZoneInfo("America/Sao_Paulo")
+        start=datetime(2026,10,8,9,0,tzinfo=tz)
+        trades=[]
+        seq=1
+        for c in range(candles):
+            base=100+c*2
+            candle_start=start+timedelta(minutes=c)
+            for i in range(30):
+                price=base+(i//10)
+                trades.append(Trade(
+                    "WINHIST",
+                    candle_start+timedelta(seconds=i*2),
+                    price,
+                    2,
+                    aggressor=AggressorSide.BUY,
+                    source=source,
+                    buyer_id="BUYER_A",
+                    seller_id="PASSIVE",
+                    sequence_no=seq,
+                ))
+                seq+=1
+        built=build_candles(trades,60)
+        refs=[
+            ReferenceCandle(
+                symbol=c.symbol,start=c.start,interval_seconds=60,
+                open_ticks=c.open_ticks,high_ticks=c.high_ticks,low_ticks=c.low_ticks,
+                close_ticks=c.close_ticks,volume=c.volume,trades=c.trades,source="test_reference"
+            )
+            for c in built
+        ]
+        return trades,refs
+
+    def test_historical_validation_measures_external_outcome_against_baseline(self):
+        trades,refs=self._rising_library(candles=8)
+        report=validate_historical_hypotheses(
+            trades,interval_seconds=60,tick_size=5.0,reference_candles=refs,horizons=(1,)
+        )
+        self.assertEqual(report["reference_mode"],"REFERENCE_EXACT_REQUIRED")
+        self.assertEqual(report["input"]["eligible_candles"],8)
+        row=next(
+            x for x in report["directional_results"]
+            if x["hypothesis_code"]=="AGRESSAO_ALINHADA_ALTA" and x["horizon_candles"]==1
+        )
+        self.assertEqual(row["with_contiguous_outcome"],7)
+        self.assertEqual(row["directional_hit_rate"],1.0)
+        self.assertEqual(row["baseline_rate"],1.0)
+        self.assertEqual(row["sample_status"],"AMOSTRA_INSUFICIENTE")
+        self.assertIn("Não valida como verdadeira",report["scope"])
+
+    def test_reference_mismatch_is_excluded(self):
+        trades,refs=self._rising_library(candles=5)
+        bad=list(refs)
+        first=bad[0]
+        bad[0]=ReferenceCandle(
+            symbol=first.symbol,start=first.start,interval_seconds=first.interval_seconds,
+            open_ticks=first.open_ticks,high_ticks=first.high_ticks+1,low_ticks=first.low_ticks,
+            close_ticks=first.close_ticks,volume=first.volume,trades=first.trades,source=first.source
+        )
+        report=validate_historical_hypotheses(
+            trades,interval_seconds=60,tick_size=5.0,reference_candles=bad,horizons=(1,)
+        )
+        self.assertEqual(report["input"]["eligible_candles"],4)
+        self.assertEqual(report["input"]["excluded"]["REFERENCE_MISMATCH"],1)
+
+    def test_synthetic_data_is_excluded_by_default(self):
+        trades,refs=self._rising_library(source="synthetic_sample_test",candles=4)
+        report=validate_historical_hypotheses(
+            trades,interval_seconds=60,tick_size=5.0,reference_candles=refs,horizons=(1,)
+        )
+        self.assertEqual(report["input"]["eligible_candles"],0)
+        self.assertEqual(report["input"]["excluded"]["SYNTHETIC"],4)
+
+    def test_future_outcome_does_not_cross_session_boundary(self):
+        trades,refs=self._rising_library(candles=2)
+        tz=ZoneInfo("America/Sao_Paulo")
+        seq=max(t.sequence_no or 0 for t in trades)+1
+        next_day=datetime(2026,10,9,9,0,tzinfo=tz)
+        for i in range(30):
+            trades.append(Trade(
+                "WINHIST",next_day+timedelta(seconds=i*2),110+i//10,2,
+                aggressor=AggressorSide.BUY,source="profit_selected_slice",
+                buyer_id="BUYER_A",seller_id="PASSIVE",sequence_no=seq+i
+            ))
+        c=build_candles([t for t in trades if t.ts.date()==next_day.date()],60)[0]
+        refs.append(ReferenceCandle(
+            symbol=c.symbol,start=c.start,interval_seconds=60,
+            open_ticks=c.open_ticks,high_ticks=c.high_ticks,low_ticks=c.low_ticks,
+            close_ticks=c.close_ticks,volume=c.volume,trades=c.trades,source="test_reference"
+        ))
+        report=validate_historical_hypotheses(
+            trades,interval_seconds=60,tick_size=5.0,reference_candles=refs,horizons=(1,)
+        )
+        row=next(x for x in report["directional_results"] if x["hypothesis_code"]=="AGRESSAO_ALINHADA_ALTA")
+        self.assertEqual(row["with_contiguous_outcome"],1)
 
 
 class CoreTests(unittest.TestCase):
@@ -847,6 +946,8 @@ class UiContractTests(unittest.TestCase):
             "interpretationReplayNotice","interpretationContent","interpretationQuality",
             "closingSynthesis","processDescription","observedFacts","hypothesisList",
             "interpretationLimitations","copyInterpretationBtn",
+            "validationHorizons","historicalValidationBtn","validationSummary","validationNotice",
+            "historicalValidationBody","descriptiveValidation","validationWarnings",
         ]
         for control_id in required_ids:
             self.assertIn(f'id="{control_id}"', html)
@@ -863,6 +964,8 @@ class UiContractTests(unittest.TestCase):
         self.assertIn("drawWaveTerminationMarkers", js)
         self.assertIn("renderInterpretation", js)
         self.assertIn("copyInterpretation", js)
+        self.assertIn("historicalValidation", js)
+        self.assertIn("/api/research/hypothesis-validation", js)
 
 class SessionQualityPersistenceTests(unittest.TestCase):
     def test_replace_session_quality_persists_payload_without_parameter_mismatch(self):
