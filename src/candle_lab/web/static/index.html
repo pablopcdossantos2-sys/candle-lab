@@ -23,7 +23,7 @@
     <label>CSV de 1 ou 2 minutos<input id="referenceFile" type="file" accept=".csv" required></label>
     <label>Contrato<input id="referenceSymbolInput" placeholder="WINV26"></label>
     <label>Tick<input id="referenceTickInput" type="number" step="0.01" value="5" required></label>
-    <label>Intervalo (s)<select id="referenceIntervalInput"><option value="60">1 minuto</option><option value="120">2 minutos</option><option value="300">5 minutos</option></select></label>
+    <label>Intervalo (s)<select id="referenceIntervalInput"><option value="60">1 minuto</option><option value="120">2 minutos</option><option value="300">5 minutos</option><option value="900">15 minutos</option></select></label>
     <button class="primary" type="submit">Importar gráfico</button>
   </form>
   <pre id="referenceResult" class="console compact">Nenhum gráfico diário importado nesta sessão.</pre>
@@ -91,7 +91,7 @@
   <div class="controls">
     <label>Ativo<select id="symbolSelect"></select></label>
     <label>Pregão<select id="sessionSelect"></select></label>
-    <label>Timeframe<select id="intervalSelect"><option value="1">1 s</option><option value="5">5 s</option><option value="15">15 s</option><option selected value="60">1 min</option><option value="120">2 min</option><option value="300">5 min</option></select></label>
+    <label>Timeframe<select id="intervalSelect"><option value="1">1 s</option><option value="5">5 s</option><option value="15">15 s</option><option selected value="60">1 min</option><option value="120">2 min</option><option value="300">5 min</option><option value="900">15 min</option></select></label>
   </div>
   <div id="qualityBox" class="notice">Nenhum recorte Tick selecionado.</div>
   <div id="validationBox" class="notice">A referência OHLC é usada para validar a reconstrução do recorte.</div>
