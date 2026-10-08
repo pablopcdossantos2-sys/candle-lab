@@ -84,6 +84,27 @@ class AggressionAnalysisTests(unittest.TestCase):
         self.assertEqual(report["summary"]["directed_aggression"],50)
         self.assertAlmostEqual(report["summary"]["aggressor_coverage"],50/85)
 
+    def test_candle_aggression_composition_and_price_flow_divergence(self):
+        tz=ZoneInfo("America/Sao_Paulo")
+        start=datetime(2026,10,8,10,0,tzinfo=tz)
+        trades=[
+            Trade("WINDIV",start+timedelta(seconds=1),102,60,aggressor=AggressorSide.BUY,buyer_id="BUYER_A",sequence_no=1),
+            Trade("WINDIV",start+timedelta(seconds=2),101,30,aggressor=AggressorSide.BUY,buyer_id="BUYER_B",sequence_no=2),
+            Trade("WINDIV",start+timedelta(seconds=3),100,20,aggressor=AggressorSide.SELL,seller_id="SELLER_A",sequence_no=3),
+            Trade("WINDIV",start+timedelta(seconds=4),99,10,aggressor=AggressorSide.NONE,flags="raw_aggressor=RLP",sequence_no=4),
+        ]
+        report=aggression_analysis(trades,5.0)
+        sm=report["summary"]
+        self.assertEqual(sm["total_volume"],120)
+        self.assertAlmostEqual(sm["buy_share_total_volume"],90/120)
+        self.assertAlmostEqual(sm["sell_share_total_volume"],20/120)
+        self.assertAlmostEqual(sm["rlp_share_total_volume"],10/120)
+        self.assertAlmostEqual(sm["buy_share_directed"],90/110)
+        self.assertEqual(sm["price_direction"],"BAIXA")
+        self.assertEqual(sm["direction"],"COMPRA")
+        self.assertEqual(sm["price_flow_relation"],"DIVERGENTE")
+        self.assertIn(sm["study_priority"],{"MODERADA","ALTA"})
+
     def test_possible_absorption_is_only_heuristic_label(self):
         tz=ZoneInfo("America/Sao_Paulo")
         start=datetime(2026,10,7,14,40,tzinfo=tz)
@@ -278,6 +299,22 @@ class CandleInterpretationTests(unittest.TestCase):
         self.assertNotIn("NIVEL_MAIS_AGREDIDO",observed)
         self.assertEqual(report["evidence_quality"]["label"],"INDISPONIVEL")
         self.assertTrue(all(x["direction"]=="SEM_DADOS_AGRESSOR" for x in report["phase_analysis"]))
+
+    def test_interpretation_marks_price_flow_divergence_for_study(self):
+        tz=ZoneInfo("America/Sao_Paulo")
+        start=datetime(2026,10,8,11,0,tzinfo=tz)
+        trades=[
+            Trade("WININT",start+timedelta(seconds=0),105,50,aggressor=AggressorSide.BUY,buyer_id="B1",sequence_no=1),
+            Trade("WININT",start+timedelta(seconds=10),104,40,aggressor=AggressorSide.BUY,buyer_id="B1",sequence_no=2),
+            Trade("WININT",start+timedelta(seconds=20),103,10,aggressor=AggressorSide.SELL,seller_id="S1",sequence_no=3),
+            Trade("WININT",start+timedelta(seconds=30),102,10,aggressor=AggressorSide.SELL,seller_id="S1",sequence_no=4),
+        ]
+        report=self._report(trades)
+        facts={x["code"]:x for x in report["observed_facts"]}
+        self.assertIn("COMPOSICAO_AGRESSAO",facts)
+        self.assertIn("DIVERGENCIA_PRECO_FLUXO",facts)
+        self.assertEqual(facts["DIVERGENCIA_PRECO_FLUXO"]["data"]["price_direction"],"BAIXA")
+        self.assertEqual(facts["DIVERGENCIA_PRECO_FLUXO"]["data"]["flow_direction"],"COMPRA")
 
     def test_candle_detail_payload_contains_interpretation(self):
         tz=ZoneInfo("America/Sao_Paulo")
