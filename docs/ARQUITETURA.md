@@ -67,3 +67,15 @@ Para o layout descendente observado no Profit, `sequence_no = -source_row`. Assi
 
 A reconstrução de OHLC do pregão inteiro é executada no DuckDB com agregações ordenadas `first(... ORDER BY ts, sequence_no)` e `last(... ORDER BY ts, sequence_no)`.
 
+
+
+## Fluxo padrão desde a v0.12
+
+A ingestão massiva acima permanece disponível, porém o caminho recomendado é **overview-first**:
+
+1. armazenar apenas OHLC de 1/2 minutos para enxergar o pregão;
+2. selecionar visualmente um intervalo;
+3. ler o CSV Tick original como fonte externa;
+4. persistir somente o recorte necessário.
+
+Veja `docs/ARQUITETURA-FLUXO-SELETIVO.md`.
