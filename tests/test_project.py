@@ -16,6 +16,7 @@ from candle_lab.transitions import analyze_stability_and_transitions
 from candle_lab.bulk import bulk_import_profit_file, aggregate_candles_sql, reconcile_store_references, export_session_parquet
 from candle_lab.reconciliation import ReferenceCandle
 from candle_lab.slice import slice_profit_trades
+from candle_lab.time_index import build_time_index, ensure_time_index, locate_candles, locate_interval
 
 UTC = timezone.utc
 
@@ -351,6 +352,63 @@ class SelectiveSliceTests(unittest.TestCase):
             self.assertEqual(second_insert["inserted"],1)
             self.assertEqual(second_insert["duplicates"],2)
             self.assertEqual(len(store.load_trades("WINSEL")),5)
+
+    def test_time_index_locates_exact_rows_and_indexed_slice_matches(self):
+        content = (
+            "WINIDX,07/10/26,10:03:00,3 - Comprador,1030,1,85 - Vendedor,Comprador\n"
+            "WINIDX,07/10/26,10:02:30,3 - Comprador,1025,2,85 - Vendedor,Comprador\n"
+            "WINIDX,07/10/26,10:02:00,3 - Comprador,1020,1,85 - Vendedor,Vendedor\n"
+            "WINIDX,07/10/26,10:01:59,3 - Comprador,1015,3,85 - Vendedor,RLP\n"
+            "WINIDX,07/10/26,10:01:00,3 - Comprador,1010,2,85 - Vendedor,Vendedor\n"
+            "WINIDX,07/10/26,10:00:59,3 - Comprador,1005,1,85 - Vendedor,Comprador\n"
+        )
+        tz = ZoneInfo("America/Sao_Paulo")
+        start = datetime(2026,10,7,10,1,tzinfo=tz)
+        end = datetime(2026,10,7,10,3,tzinfo=tz)
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = root / "WINIDX_FULL.csv"
+            source.write_text(content, encoding="cp1252")
+
+            index = build_time_index(source,index_dir=root/"indexes",symbol="WINIDX")
+            self.assertEqual(index.rows,6)
+            self.assertEqual(index.source_order,"DESCENDING")
+            self.assertEqual(len(index.buckets),4)
+
+            located = locate_interval(index,start=start,end=end)
+            self.assertEqual(located["source_row_min"],2)
+            self.assertEqual(located["source_row_max"],5)
+            self.assertEqual(located["chronological_open_row"],5)
+            self.assertEqual(located["chronological_close_row"],2)
+            self.assertEqual(located["trades"],4)
+
+            mapped = locate_candles(
+                index,
+                candle_starts=[start,start+timedelta(minutes=1)],
+                interval_seconds=60,
+            )
+            self.assertEqual((mapped[0]["source_row_min"],mapped[0]["source_row_max"]),(4,5))
+            self.assertEqual((mapped[0]["chronological_open_row"],mapped[0]["chronological_close_row"]),(5,4))
+            self.assertEqual((mapped[1]["source_row_min"],mapped[1]["source_row_max"]),(2,3))
+            self.assertEqual((mapped[1]["chronological_open_row"],mapped[1]["chronological_close_row"]),(3,2))
+
+            full_output = root / "full_scan.csv"
+            full = slice_profit_trades(source,start=start,end=end,output_path=full_output,symbol="WINIDX")
+
+            indexed_output = root / "indexed.csv"
+            indexed = slice_profit_trades(
+                source,start=start,end=end,output_path=indexed_output,symbol="WINIDX",
+                seek_byte_start=located["byte_start"],seek_byte_end=located["byte_end"],
+                source_row_base=located["source_row_min"]-1,
+            )
+            self.assertTrue(indexed.indexed_seek)
+            self.assertEqual(indexed.scanned_rows,4)
+            self.assertEqual((indexed.first_source_row,indexed.last_source_row),(2,5))
+            self.assertEqual(full_output.read_bytes(),indexed_output.read_bytes())
+
+            cached,built_now = ensure_time_index(source,index_dir=root/"indexes",symbol="WINIDX")
+            self.assertFalse(built_now)
+            self.assertEqual(cached.source_sha256,index.source_sha256)
 
     def test_slice_aware_reconciliation_skips_unselected_gaps(self):
         tz = ZoneInfo("America/Sao_Paulo")
