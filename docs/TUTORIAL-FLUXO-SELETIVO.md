@@ -1,4 +1,4 @@
-# Tutorial — fluxo seletivo do Candle Lab v0.12
+# Tutorial — fluxo seletivo do Candle Lab v0.13
 
 Este é o fluxo recomendado para analisar um pregão real sem armazenar um arquivo Tick by Tick gigantesco dentro do Candle Lab.
 
@@ -110,19 +110,21 @@ Você obterá algo parecido com:
 
 Não há problema se o caminho vier entre aspas.
 
-## Passo 6 — colar o caminho no Candle Lab
+## Passo 6 — colar o caminho no Candle Lab e preparar o índice
 
-Na seção **3 — Gerar e importar o recorte Tick by Tick**:
+Na seção **3 — Localizar as linhas no CSV Tick by Tick**:
 
 1. cole o caminho;
 2. confira o tick size;
-3. clique em **Recortar e importar intervalo**.
+3. clique em **Preparar índice e localizar**;
+4. aguarde a primeira indexação daquele arquivo;
+5. confira a tabela de linhas de cada candle.
 
 O Candle Lab não envia esse arquivo para a internet.
 
-Como o servidor do aplicativo está rodando localmente no mesmo computador, ele abre o arquivo diretamente do disco e o percorre em streaming.
+Como o servidor do aplicativo está rodando localmente no mesmo computador, ele abre o arquivo diretamente do disco. Na primeira utilização, lê o arquivo uma vez para criar um índice M1 com linhas e offsets de byte. Nas seleções seguintes, reutiliza esse índice.
 
-## Passo 7 — o que acontece internamente
+## Passo 7 — como o índice localiza os candles
 
 Para um arquivo descendente do Profit, o programa:
 
@@ -146,9 +148,9 @@ data\slices\WINV26_20261007-144000_145000_TRADES.csv
 
 Esse arquivo preserva a ordem original do Profit. O importador normaliza essa ordem apenas na camada analítica.
 
-## Passo 8 — abrir a Biblioteca de microestrutura
+## Passo 8 — gerar o recorte e abrir a Biblioteca de microestrutura
 
-Depois do recorte, vá à seção **Biblioteca de microestrutura**.
+Depois que a tabela de linhas estiver correta, clique em **Recortar e importar intervalo localizado**. O Candle Lab usa os offsets de byte para saltar diretamente ao trecho necessário. Em seguida, vá à seção **Biblioteca de microestrutura**.
 
 Selecione:
 
@@ -251,3 +253,21 @@ Também é permitido estudar, por exemplo:
 ```
 
 A reconciliação seletiva compara apenas os candles efetivamente importados. O período intermediário não é tratado como erro ou `NO_DATA`, pois sua ausência foi intencional.
+
+
+## Índice temporal persistente
+
+O índice fica em:
+
+~~~text
+data\indexes
+~~~
+
+Ele é pequeno e pode ser reutilizado para todas as seleções futuras do mesmo CSV original.
+
+Para detalhes sobre a regra candle → linhas → bytes, veja:
+
+~~~text
+docs\INDICE-TEMPORAL-LINHAS.md
+docs\TUTORIAL-LOCALIZAR-LINHAS.md
+~~~
