@@ -261,6 +261,24 @@ class CandleInterpretationTests(unittest.TestCase):
         self.assertEqual(report["evidence_quality"]["label"],"LIMITADA")
         self.assertIn("qualidade da evidência",report["limitations"][0].lower())
 
+    def test_missing_aggressor_data_is_not_reported_as_zero_aggression(self):
+        tz=ZoneInfo("America/Sao_Paulo")
+        start=datetime(2026,10,8,11,0,tzinfo=tz)
+        trades=[
+            Trade(
+                "WININT",start+timedelta(seconds=i),100+(i%3),5,
+                aggressor=AggressorSide.NONE,buyer_id="B",seller_id="S",sequence_no=i+1
+            )
+            for i in range(12)
+        ]
+        report=self._report(trades)
+        observed={x["code"]:x["text"] for x in report["observed_facts"]}
+        self.assertIn("AGRESSAO_TOTAL",observed)
+        self.assertIn("dado de agressão indisponível",observed["AGRESSAO_TOTAL"].lower())
+        self.assertNotIn("NIVEL_MAIS_AGREDIDO",observed)
+        self.assertEqual(report["evidence_quality"]["label"],"INDISPONIVEL")
+        self.assertTrue(all(x["direction"]=="SEM_DADOS_AGRESSOR" for x in report["phase_analysis"]))
+
     def test_candle_detail_payload_contains_interpretation(self):
         tz=ZoneInfo("America/Sao_Paulo")
         start=datetime(2026,10,8,11,0,tzinfo=tz)
@@ -471,6 +489,20 @@ class ProfitExportTests(unittest.TestCase):
         self.assertEqual([t.sequence_no for t in trades], [1, 2, 3, 4])
         self.assertEqual(sum(t.quantity for t in trades), 6)
         self.assertIn("raw_aggressor=RLP", trades[2].flags or "")
+
+    def test_profit_header_agressao_alias_is_recognized(self):
+        content = (
+            "Ativo;Data;Hora;Agente Comprador;Preço;Quantidade;Agente Vendedor;Agressão\n"
+            "WINTEST;08/10/2026;10:00:00;3 - Comprador;1.000;2;85 - Vendedor;Comprador\n"
+            "WINTEST;08/10/2026;10:00:01;3 - Comprador;1.005;3;85 - Vendedor;Vendedor\n"
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "profit_header_agressao.csv"
+            path.write_text(content, encoding="cp1252")
+            trades, report = import_csv_with_report(path, symbol=None, tick_size=5.0, source="profit_csv")
+        self.assertEqual(report.aggressor_known_pct,100.0)
+        self.assertEqual(trades[0].aggressor,AggressorSide.BUY)
+        self.assertEqual(trades[1].aggressor,AggressorSide.SELL)
 
     def test_formatted_profit_reference_uses_quantidade_not_financial_volume(self):
         content = (
