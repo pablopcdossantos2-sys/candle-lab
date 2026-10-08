@@ -8,7 +8,7 @@ from candle_lab.candles import build_candles
 from candle_lab.counterfactual import generate_ohlc_path
 from candle_lab.models import Trade
 from candle_lab.importers import import_csv_with_report
-from candle_lab.reconciliation import import_reference_candles, reconcile_observed_window
+from candle_lab.reconciliation import import_reference_candles, reconcile_observed_window, reconcile_available_candles
 from candle_lab.sample import generate_builtin_sample
 from candle_lab.storage import MarketStore
 from candle_lab.trajectory import classify_rule_family, deterministic_kmeans
@@ -351,6 +351,25 @@ class SelectiveSliceTests(unittest.TestCase):
             self.assertEqual(second_insert["inserted"],1)
             self.assertEqual(second_insert["duplicates"],2)
             self.assertEqual(len(store.load_trades("WINSEL")),5)
+
+    def test_slice_aware_reconciliation_skips_unselected_gaps(self):
+        tz = ZoneInfo("America/Sao_Paulo")
+        trades = [
+            Trade("WINSEL",datetime(2026,10,7,10,0,0,tzinfo=tz),200,1,source="profit_selected_slice",sequence_no=1),
+            Trade("WINSEL",datetime(2026,10,7,10,0,59,tzinfo=tz),201,1,source="profit_selected_slice",sequence_no=2),
+            Trade("WINSEL",datetime(2026,10,7,10,2,0,tzinfo=tz),202,1,source="profit_selected_slice",sequence_no=3),
+            Trade("WINSEL",datetime(2026,10,7,10,2,59,tzinfo=tz),203,1,source="profit_selected_slice",sequence_no=4),
+        ]
+        refs = [
+            ReferenceCandle("WINSEL",datetime(2026,10,7,10,0,tzinfo=tz),60,200,201,200,201,volume=2),
+            ReferenceCandle("WINSEL",datetime(2026,10,7,10,1,tzinfo=tz),60,205,206,204,205,volume=99),
+            ReferenceCandle("WINSEL",datetime(2026,10,7,10,2,tzinfo=tz),60,202,203,202,203,volume=2),
+        ]
+        report = reconcile_available_candles(trades,refs,interval_seconds=60,tick_size=5.0)
+        self.assertEqual(report["summary"]["reference_candles"],2)
+        self.assertEqual(report["summary"]["exact"],2)
+        self.assertEqual(report["summary"]["no_data"],0)
+        self.assertEqual(report["reference_candles_skipped_outside_slices"],1)
 
     def test_reference_overview_works_without_any_tick_trades(self):
         tz = ZoneInfo("America/Sao_Paulo")
