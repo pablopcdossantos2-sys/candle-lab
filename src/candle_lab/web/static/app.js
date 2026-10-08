@@ -34,7 +34,7 @@ function chartGeometry(){
 function visibleWindow(){
   const total=state.overviewCandles.length;
   if(!total)return {start:0,end:0,count:0,total:0};
-  const zoom=Math.max(1,Math.min(12,Number(state.zoom)||1));
+  const zoom=Math.max(1,Math.min(30,Number(state.zoom)||1));
   const count=Math.min(total,Math.max(10,Math.ceil(total/zoom)));
   const maxStart=Math.max(0,total-count);
   state.viewStart=Math.max(0,Math.min(maxStart,Math.round(state.viewStart||0)));
@@ -134,7 +134,7 @@ function setZoom(value,centerIndex=null){
   const total=state.overviewCandles.length;if(!total)return;
   const old=visibleWindow();
   const center=centerIndex==null?(old.start+(old.count-1)/2):centerIndex;
-  state.zoom=Math.max(1,Math.min(12,Math.round(Number(value)||1)));
+  state.zoom=Math.max(1,Math.min(30,Math.round(Number(value)||1)));
   $('zoomRange').value=String(state.zoom);
   const count=Math.min(total,Math.max(10,Math.ceil(total/state.zoom)));
   state.viewStart=Math.round(center-count/2);
@@ -153,7 +153,7 @@ function zoomToSelection(){
   const total=state.overviewCandles.length;
   const selected=state.selection.count;
   const targetVisible=Math.max(10,Math.ceil(selected*1.8));
-  const wanted=Math.max(1,Math.min(12,Math.floor(total/targetVisible)||1));
+  const wanted=Math.max(1,Math.min(30,Math.floor(total/targetVisible)||1));
   const center=(state.selection.startIndex+state.selection.endIndex)/2;
   setZoom(wanted,center);
 }
@@ -164,7 +164,7 @@ function ensureSelectionVisible(){
   if(state.selection.count>win.count){
     const total=state.overviewCandles.length;
     const wanted=Math.max(1,Math.floor(total/Math.ceil(state.selection.count*1.35)));
-    state.zoom=Math.max(1,Math.min(12,wanted));
+    state.zoom=Math.max(1,Math.min(30,wanted));
     $('zoomRange').value=String(state.zoom);
     win=visibleWindow();
   }
@@ -207,7 +207,7 @@ function drawDayChart(){
     ctx.fillText(n(price,2),4,yy+4);
   }
 
-  const maxLabels=Math.max(8,Math.floor(plotW/72));
+  const maxLabels=Math.max(8,Math.floor(plotW/54));
   const labelEvery=Math.max(1,Math.ceil(win.count/maxLabels));
   candles.forEach((c,local)=>{
     const global=win.start+local,x=g.left+step*(local+.5);
