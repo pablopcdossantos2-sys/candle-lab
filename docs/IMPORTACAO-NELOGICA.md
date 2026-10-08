@@ -91,3 +91,19 @@ O arquivo pode conter colunas extras, como Número do Negócio. Elas não impede
 A linha de cabeçalho é preservada apenas como metadado da fonte. O pequeno recorte derivado é normalizado internamente para as 8 colunas necessárias ao Candle Lab, sem modificar o CSV original.
 
 As linhas mostradas na tabela do índice correspondem às **linhas físicas reais do arquivo original**, incluindo o deslocamento causado por eventual cabeçalho.
+
+## Formatação brasileira de preços
+
+Em exportações do Profit, o ponto pode ser separador de milhar. Assim, para o WIN:
+
+```text
+205.935  → 205935
+```
+
+e um valor com ponto e vírgula decimal, por exemplo:
+
+```text
+5.321,5 → 5321.5
+```
+
+A partir da v0.14.2, essa interpretação é aplicada apenas quando o arquivo foi reconhecido como perfil Profit. CSVs genéricos continuam preservando o ponto isolado como separador decimal.
