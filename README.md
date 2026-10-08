@@ -581,6 +581,7 @@ Para aprofundar o projeto:
 - `docs/TUTORIAL-FLUXO-SELETIVO.md` — fluxo recomendado: gráfico diário, seleção e recorte Tick;
 - `docs/INDICE-TEMPORAL-LINHAS.md` — regra exata candle → linhas → bytes;
 - `docs/TUTORIAL-LOCALIZAR-LINHAS.md` — tutorial para preparar o índice e localizar candles;
+- `docs/VALIDACAO-INDICE-TEMPORAL-V013.md` — validação do mapa de linhas/bytes com o recorte real do WINV26;
 - `docs/TUTORIAL-VALIDACAO-PREGAO-COMPLETO.md` — auditoria opcional do pregão inteiro.
 
 ---
