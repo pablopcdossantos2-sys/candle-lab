@@ -2,7 +2,7 @@
 
 **Laboratório local para investigar como candles de futuros da B3 são formados negócio a negócio.**
 
-Versão atual: **0.14.0**
+Versão atual: **0.14.1**
 
 O Candle Lab B3 nasceu de uma pergunta simples: **dois candles visualmente parecidos necessariamente foram formados da mesma maneira?**
 
@@ -644,3 +644,15 @@ O Candle Lab procura preservar algumas regras metodológicas desde o início:
 A pergunta que orienta o projeto continua sendo:
 
 > **Quantas estruturas internas diferentes podem existir por trás de candles que parecem iguais?**
+
+
+## Compatibilidade adicional de Trades — v0.14.1
+
+O localizador seletivo agora aceita:
+
+- layout Profit sem cabeçalho de 8 colunas;
+- layout Profit sem cabeçalho de 9 colunas com Número do Negócio;
+- CSVs com cabeçalho reconhecível e colunas extras;
+- valores numéricos no formato brasileiro em arquivos separados por ponto e vírgula.
+
+O recorte derivado é normalizado para um CSV interno inequívoco, sem modificar a fonte original.
