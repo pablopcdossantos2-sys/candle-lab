@@ -12,7 +12,7 @@ from pydantic import BaseModel
 
 from ..candles import build_candles, floor_time
 from ..importers import import_csv_with_report, import_generic_csv
-from ..reconciliation import ReferenceCandle, import_reference_candles, reconcile_candles, reconcile_observed_window
+from ..reconciliation import ReferenceCandle, import_reference_candles, reconcile_candles, reconcile_observed_window, reconcile_available_candles
 from ..research import build_research_index, intrabar_comparison_payload, research_matches
 from ..quality import assess_library_quality
 from ..services import candle_detail_payload, candle_payload, similar_candles_payload
@@ -197,6 +197,8 @@ def create_app(db_path:str|Path=DEFAULT_DB)->FastAPI:
         if not refs:return {"interval_seconds":interval_seconds,"summary":{"reference_candles":0,"reconstructed_candles":len(build_candles(trades,interval_seconds)),
             "exact":0,"ohlc_match":0,"mismatch":0,"no_data":0,"ohlc_match_rate":0.0,"exact_rate":0.0},"results":[],
             "message":"Nenhuma referência OHLC importada para este ativo/pregão/intervalo."}
+        if any(t.source=="profit_selected_slice" for t in trades):
+            return reconcile_available_candles(trades,refs,interval_seconds=interval_seconds,tick_size=store.tick_size(symbol))
         return reconcile_observed_window(trades,refs,interval_seconds=interval_seconds,tick_size=store.tick_size(symbol))
 
     def _ensure_research_index(symbol:str,interval_seconds:int,*,force:bool=False):
