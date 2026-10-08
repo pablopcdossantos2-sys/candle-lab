@@ -283,3 +283,32 @@ O repositório não contém um histórico amplo de microestrutura real.
 A validação empírica real depende dos recortes que o usuário importar para o DuckDB local.
 
 Portanto, a v0.18 entrega **a infraestrutura do estudo**; resultados robustos só surgirão à medida que a biblioteca real crescer.
+
+
+---
+
+## Exportação do relatório
+
+Depois de executar **Validar hipóteses na biblioteca**, a interface habilita:
+
+`Baixar relatório JSON`
+
+O arquivo contém, entre outros:
+
+- versão do modelo;
+- símbolo e timeframe;
+- modo de referência;
+- candles elegíveis e exclusões;
+- baselines;
+- ocorrências por hipótese;
+- resultados direcionais por horizonte;
+- N;
+- taxa de acerto direcional;
+- taxa de movimento mínimo;
+- lift;
+- intervalo Wilson de 95%;
+- excursão favorável/adversa;
+- resultados por confiança;
+- advertências metodológicas.
+
+Esse JSON é o formato recomendado para entregar a uma IA que posteriormente criará um indicador. Os prompts em `prompts/` obrigam a IA a ler N, baseline, lift, intervalo de confiança e disponibilidade real das variáveis antes de escrever código.
