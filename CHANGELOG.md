@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.18.0 — 2026-10-08
+- adiciona motor de validação histórica das hipóteses do relatório interpretativo;
+- mede repetibilidade e desfechos externos em horizontes configuráveis;
+- exige continuidade temporal dentro do mesmo pregão;
+- exclui dados sintéticos por padrão;
+- quando há referência compatível, exige reconstrução EXACT do candle;
+- calcula baseline direcional da própria biblioteca;
+- calcula taxa de acerto, movimento >= 2 ticks, lift, excursão favorável/adversa e IC Wilson 95%;
+- separa hipóteses direcionais de hipóteses apenas descritivas;
+- adiciona painel `Validação histórica das hipóteses` à interface;
+- adiciona endpoint `/api/research/hypothesis-validation`;
+- adiciona testes para baseline, exclusão sintética, referência divergente e fronteira de pregão;
+- documenta a metodologia em `docs/VALIDACAO-HISTORICA-HIPOTESES.md`;
+- cria catálogo de possíveis indicadores em `docs/INDICADORES-POSSIVEIS-CANDLE-LAB.md`;
+- adiciona pacote de prompts para TradingView/Pine Script;
+- adiciona pacote de prompts para Profit Pro/NTSL;
+- não implementa ainda os indicadores de plataforma: esta etapa é de pesquisa, especificação e preparação.
+
+
 ## 0.17.0 — 2026-10-08
 - adiciona motor determinístico e auditável de interpretação do candle;
 - gera descrição cronológica da agressão em início, miolo e fase final;
