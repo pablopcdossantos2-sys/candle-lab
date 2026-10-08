@@ -26,6 +26,9 @@ class SliceResult:
     source_fingerprint: str
     first_source_row: int
     last_source_row: int
+    indexed_seek: bool
+    source_byte_start: int
+    source_byte_end: int
     sha256: str
 
     def to_dict(self) -> dict[str, object]:
@@ -120,6 +123,9 @@ def slice_profit_trades(
     output_path: str | Path | None = None,
     symbol: str | None = None,
     progress: Callable[[dict[str, object]], None] | None = None,
+    seek_byte_start: int | None = None,
+    seek_byte_end: int | None = None,
+    source_row_base: int = 0,
 ) -> SliceResult:
     """Extrai [start, end) do CSV original sem carregar o arquivo inteiro em memória."""
     source = Path(str(source_path).strip().strip('"')).expanduser().resolve()
@@ -147,21 +153,35 @@ def slice_profit_trades(
     output.parent.mkdir(parents=True, exist_ok=True)
 
     scanned = matched = 0
+    source_row = int(source_row_base)
     stopped_early = False
     first_source_row = 0
     last_source_row = 0
     source_size = source.stat().st_size
     source_id = source_fingerprint(source)
+    indexed_seek = seek_byte_start is not None
+    byte_begin = int(seek_byte_start or 0)
+    byte_limit = int(seek_byte_end) if seek_byte_end is not None else source_size
 
-    with source.open("r", encoding=encoding, newline="") as src, output.open("w", encoding=encoding, newline="") as dst:
-        reader = csv.reader(src, dialect=dialect)
+    # O caminho indexado abre em binário para que tell/seek usem offsets físicos exatos.
+    with source.open("rb") as src, output.open("w", encoding=encoding, newline="") as dst:
+        if byte_begin:
+            src.seek(byte_begin)
         writer = csv.writer(dst, dialect=dialect)
-        for row in reader:
+        while src.tell() < byte_limit:
+            raw = src.readline()
+            if not raw:
+                break
+            scanned += 1
+            source_row += 1
+            decoded = raw.decode(encoding).rstrip("\r\n")
+            if not decoded.strip():
+                continue
+            row = next(csv.reader([decoded], dialect=dialect))
             if not row or not any(cell.strip() for cell in row):
                 continue
-            scanned += 1
             if len(row) != 8:
-                raise ValueError(f"Linha {scanned}: esperado=8 colunas; recebido={len(row)}")
+                raise ValueError(f"Linha-fonte {source_row}: esperado=8 colunas; recebido={len(row)}")
             ts = _parse_datetime(None, row[1], row[2])
 
             include = False
@@ -186,15 +206,17 @@ def slice_profit_trades(
                 writer.writerow(row)
                 matched += 1
                 if first_source_row == 0:
-                    first_source_row = scanned
-                last_source_row = scanned
+                    first_source_row = source_row
+                last_source_row = source_row
 
             if progress and scanned % 100_000 == 0:
                 progress({
                     "scanned_rows": scanned,
+                    "source_row": source_row,
                     "matched_rows": matched,
                     "source_order": source_order,
                     "source_bytes": source_size,
+                    "indexed_seek": indexed_seek,
                 })
 
     if matched == 0:
@@ -219,5 +241,8 @@ def slice_profit_trades(
         source_fingerprint=source_id,
         first_source_row=first_source_row,
         last_source_row=last_source_row,
+        indexed_seek=indexed_seek,
+        source_byte_start=byte_begin,
+        source_byte_end=byte_limit,
         sha256=_sha256(output),
     )
