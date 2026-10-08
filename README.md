@@ -2,7 +2,7 @@
 
 **Laboratório local para investigar como candles de futuros da B3 são formados negócio a negócio.**
 
-Versão atual: **0.14.2**
+Versão atual: **0.14.3**
 
 O Candle Lab B3 nasceu de uma pergunta simples: **dois candles visualmente parecidos necessariamente foram formados da mesma maneira?**
 
@@ -665,3 +665,17 @@ A v0.14.2 corrige duas situações observadas durante o teste com o CSV real:
 - a primeira construção do índice temporal agora exibe progresso real pela quantidade de bytes lidos, com porcentagem, linhas processadas, tamanho percorrido e minutos indexados.
 
 A interpretação brasileira é restrita ao perfil Profit. CSVs genéricos continuam usando a regra numérica anterior.
+
+## Progresso do recorte seletivo — v0.14.3
+
+A etapa **Recortar e importar intervalo localizado** agora possui acompanhamento próprio de progresso.
+
+A interface mostra:
+
+- porcentagem geral da tarefa;
+- etapa atual;
+- bytes efetivamente lidos durante a extração;
+- negócios encontrados no recorte;
+- progresso das fases de normalização, gravação e atualização da biblioteca.
+
+Durante a extração, a porcentagem é derivada dos bytes reais da faixa localizada. As fases posteriores avançam por marcos concluídos da própria operação.
