@@ -241,7 +241,7 @@ class CandleInterpretationTests(unittest.TestCase):
         report=self._report(trades)
         hypothesis=next(h for h in report["hypotheses"] if h["code"]=="ALTA_COM_DELTA_VENDEDOR")
         self.assertIn("hipótese",hypothesis["explanation"].lower())
-        self.assertIn("não prova",report["closing_synthesis"].lower())
+        self.assertIn("não constituem demonstração causal",report["closing_synthesis"].lower())
         observed_text=" ".join(x["text"] for x in report["observed_facts"]).lower()
         self.assertNotIn("absorção comprovada",observed_text)
 
