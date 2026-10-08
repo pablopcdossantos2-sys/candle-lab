@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.14.4 — 2026-10-07
+- corrige `Parameter argument/count mismatch` ao gravar `session_quality` no DuckDB;
+- `INSERT` de qualidade passa a declarar explicitamente todas as colunas;
+- adiciona teste de persistência real do payload de qualidade;
+- não exige apagar índice temporal, recortes ou banco local já existentes.
+
+
 ## 0.14.3 — 2026-10-07
 - adiciona barra de progresso à ação `Recortar e importar intervalo localizado`;
 - extração seletiva reporta progresso pelos bytes efetivamente lidos da faixa localizada;
