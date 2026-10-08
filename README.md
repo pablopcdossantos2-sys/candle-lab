@@ -270,7 +270,7 @@ A seleção pode ser feita de três maneiras:
 
 O gráfico também ganhou:
 
-- zoom horizontal em até 12 níveis;
+- zoom horizontal em até 30 níveis;
 - botões para mover a janela visível para a esquerda/direita;
 - comando **Mostrar dia inteiro**;
 - comando **Zoom na seleção**;
