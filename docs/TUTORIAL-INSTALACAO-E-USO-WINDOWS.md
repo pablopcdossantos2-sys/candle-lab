@@ -126,14 +126,12 @@ Vá à seção **2 — Gráfico diário para seleção**.
 
 Há três maneiras de definir o intervalo. Elas podem ser combinadas.
 
-### Método A — clicar e arrastar
+### Método A — clique simples ou clique e arraste
 
-1. posicione o mouse perto do primeiro candle;
-2. mantenha o botão esquerdo pressionado;
-3. arraste até o último candle;
-4. solte o botão.
+- Um **clique simples** cria inicialmente uma seleção de um único candle e faz aparecer os marcadores INÍCIO/FIM.
+- Para criar uma faixa de uma vez, mantenha o botão esquerdo pressionado e arraste do primeiro ao último candle.
 
-Uma faixa destacada aparecerá.
+Depois disso, os limites podem ser corrigidos pelos marcadores, sem precisar repetir o clique inicial.
 
 ### Método B — usar os marcadores INÍCIO e FIM
 
