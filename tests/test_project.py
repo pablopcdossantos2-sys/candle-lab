@@ -1052,7 +1052,7 @@ class UiContractTests(unittest.TestCase):
             "interpretationReplayNotice","interpretationContent","interpretationQuality",
             "closingSynthesis","processDescription","observedFacts","hypothesisList",
             "interpretationLimitations","copyInterpretationBtn",
-            "validationHorizons","historicalValidationBtn","validationSummary","validationNotice",
+            "validationHorizons","historicalValidationBtn","downloadValidationBtn","validationSummary","validationNotice",
             "historicalValidationBody","descriptiveValidation","validationWarnings",
         ]
         for control_id in required_ids:
@@ -1071,6 +1071,7 @@ class UiContractTests(unittest.TestCase):
         self.assertIn("renderInterpretation", js)
         self.assertIn("copyInterpretation", js)
         self.assertIn("historicalValidation", js)
+        self.assertIn("downloadHistoricalValidation", js)
         self.assertIn("/api/research/hypothesis-validation", js)
 
 class SessionQualityPersistenceTests(unittest.TestCase):
