@@ -87,13 +87,26 @@ class AggressionAnalysisTests(unittest.TestCase):
             Trade("WINAGG",start+timedelta(seconds=2),100,100,aggressor=AggressorSide.BUY,buyer_id="A",sequence_no=2),
             Trade("WINAGG",start+timedelta(seconds=3),101,5,aggressor=AggressorSide.SELL,seller_id="S",sequence_no=3),
             Trade("WINAGG",start+timedelta(seconds=4),100,10,aggressor=AggressorSide.BUY,buyer_id="A",sequence_no=4),
-            Trade("WINAGG",start+timedelta(seconds=5),100,10,aggressor=AggressorSide.BUY,buyer_id="A",sequence_no=5),
+            Trade("WINAGG",start+timedelta(seconds=5),99,5,aggressor=AggressorSide.SELL,seller_id="S2",sequence_no=5),
         ]
         report=aggression_analysis(trades,5.0)
         level100=next(x for x in report["levels"] if x["price_ticks"]==100)
         self.assertEqual(level100["response"],"POSSIVEL_ABSORCAO")
         self.assertIn("não prova causal",report["limitations"])
 
+
+    def test_no_future_observation_does_not_claim_absorption(self):
+        tz=ZoneInfo("America/Sao_Paulo")
+        start=datetime(2026,10,7,14,40,tzinfo=tz)
+        trades=[
+            Trade("WINAGG",start,100,5,aggressor=AggressorSide.SELL,seller_id="S",sequence_no=1),
+            Trade("WINAGG",start+timedelta(seconds=1),101,100,aggressor=AggressorSide.BUY,buyer_id="A",sequence_no=2),
+            Trade("WINAGG",start+timedelta(seconds=2),101,100,aggressor=AggressorSide.BUY,buyer_id="A",sequence_no=3),
+        ]
+        report=aggression_analysis(trades,5.0)
+        level101=next(x for x in report["levels"] if x["price_ticks"]==101)
+        self.assertEqual(level101["response"],"SEM_JANELA_POS_AGRESSAO")
+        self.assertEqual(level101["future_observations"],0)
 
 class CoreTests(unittest.TestCase):
     def test_build_candle(self):
