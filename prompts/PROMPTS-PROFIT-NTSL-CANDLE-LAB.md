@@ -563,3 +563,110 @@ Times & Trades:
 https://ajuda.nelogica.com.br/hc/pt-br/articles/360054569632-Times-Trades
 
 A documentação pode mudar. A IA deve verificar as funções antes de produzir o código final.
+
+
+---
+
+# PROFIT-CL-12 — Painel explicativo do candle
+
+Use o PROMPT BASE e crie **Candle Lab — Painel de Microestrutura**.
+
+## Objetivo
+
+Criar um painel/indicador compacto com as variáveis de agressão que forem oficialmente acessíveis ao NTSL.
+
+Mostrar, quando documentado e disponível:
+
+- agressão compradora;
+- agressão vendedora;
+- saldo;
+- delta normalizado;
+- intensidade relativa;
+- relação preço × agressão;
+- divergência;
+- estado de onda aproximado;
+- eficiência esforço × resultado;
+- hipótese dominante;
+- qualidade/disponibilidade do dado.
+
+## Regra de fidelidade
+
+O Candle Lab possui sequência Tick by Tick e, em alguns arquivos, identificação de agentes.
+
+O painel NTSL não deve afirmar que reproduz essas dimensões se elas não estiverem expostas ao script.
+
+Sempre incluir uma linha de fonte/metodologia, por exemplo:
+
+```text
+Fonte: agressão agregada NTSL
+Granularidade: candle
+Modelo de onda: aproximação entre barras
+```
+
+## Estados sugeridos
+
+- ALINHADO_COMPRA;
+- ALINHADO_VENDA;
+- DIVERGENCIA_ALTA;
+- DIVERGENCIA_BAIXA;
+- BUY_DOMINANTE;
+- SELL_DOMINANTE;
+- BUY_EXAURIDA;
+- SELL_EXAURIDA;
+- TROCA_CONTROLE;
+- BAIXA_INFORMACAO.
+
+## Arquitetura
+
+Reutilize as funções dos indicadores CL-01/02/03/05/06/08 quando possível.
+
+Não copie regras em vários lugares.
+
+## Visual
+
+Use apenas recursos NTSL oficialmente documentados.
+
+Priorize legibilidade:
+
+- Plot/PlotN para séries;
+- PaintBar apenas como opção;
+- PlotText apenas se não poluir o gráfico;
+- parâmetros para ligar/desligar componentes.
+
+## Alertas
+
+Se o ambiente permitir alertas na forma proposta, os eventos precisam ser confirmados sem look-ahead.
+
+Não gerar recomendações de compra/venda.
+
+---
+
+# PROMPT DE INTEGRAÇÃO COM RELATÓRIO HISTÓRICO DO CANDLE LAB
+
+Use este prompt quando o usuário fornecer o JSON baixado em **Validação histórica das hipóteses**.
+
+## Objetivo
+
+Transformar resultados do Candle Lab em uma especificação NTSL somente quando:
+
+- houver amostra razoável;
+- o desfecho externo for claramente definido;
+- a variável original puder ser reproduzida ou aproximada de forma honesta no Profit.
+
+## Procedimento
+
+1. leia o relatório inteiro;
+2. apresente tabela com hipótese, horizonte, N, taxa, baseline, lift e IC 95%;
+3. identifique o status da amostra;
+4. descarte resultados `AMOSTRA_INSUFICIENTE` como candidatos operacionais;
+5. consulte o Manual NTSL atual para cada variável necessária;
+6. classifique cada variável como:
+   - NATIVA;
+   - PROXY;
+   - INDISPONIVEL;
+7. não substitua variável INDISPONIVEL silenciosamente;
+8. produza primeiro a especificação do indicador;
+9. registre a versão do JSON e dos parâmetros;
+10. deixe uma janela fora da amostra para teste posterior.
+
+Se a hipótese depender de agente/corretora individual e o NTSL atual não expuser essa identidade, conclua que a reprodução fiel é inviável em NTSL padrão.
