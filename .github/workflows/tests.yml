@@ -31,18 +31,21 @@ jobs:
       - name: Validar JavaScript da interface
         run: node --check src/candle_lab/web/static/app.js
 
-      - name: Validar iniciador PowerShell
+      - name: Validar iniciadores PowerShell
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          $tokens = $null
-          $errors = $null
-          [System.Management.Automation.Language.Parser]::ParseFile(
-            (Resolve-Path "validar-pregao-completo.ps1"),
-            [ref]$tokens,
-            [ref]$errors
-          ) | Out-Null
-          if ($errors.Count -gt 0) {
-            $errors | ForEach-Object { Write-Error $_.Message }
-            exit 1
+          foreach ($script in @("iniciar.ps1", "validar-pregao-completo.ps1")) {
+            $tokens = $null
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile(
+              (Resolve-Path $script),
+              [ref]$tokens,
+              [ref]$errors
+            ) | Out-Null
+            if ($errors.Count -gt 0) {
+              Write-Host "Erros em $script"
+              $errors | ForEach-Object { Write-Error $_.Message }
+              exit 1
+            }
           }
