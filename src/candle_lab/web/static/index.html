@@ -30,19 +30,53 @@
 </section>
 
 <section class="card" id="overviewCard">
-  <div class="step-title"><span>2</span><div><h2>Visão geral do pregão</h2><p>Arraste o mouse sobre o gráfico para selecionar os candles que deseja investigar em profundidade.</p></div></div>
+  <div class="step-title"><span>2</span><div><h2>Gráfico diário para seleção</h2><p>Use zoom, os marcadores arrastáveis ou digite os horários para definir com precisão o intervalo que deseja investigar.</p></div></div>
   <div class="controls">
     <label>Ativo<select id="overviewSymbolSelect"></select></label>
     <label>Pregão / timeframe<select id="overviewSessionSelect"></select></label>
     <button id="overviewRefreshBtn">Atualizar gráfico</button>
   </div>
+
+  <div class="chart-toolbar">
+    <div class="zoom-group">
+      <button id="panLeftBtn" title="Mover a janela para horários anteriores">◀</button>
+      <button id="zoomOutBtn" title="Diminuir zoom">−</button>
+      <label>Zoom
+        <input id="zoomRange" type="range" min="1" max="12" step="1" value="1">
+      </label>
+      <button id="zoomInBtn" title="Aumentar zoom">+</button>
+      <button id="panRightBtn" title="Mover a janela para horários posteriores">▶</button>
+      <button id="resetZoomBtn">Mostrar dia inteiro</button>
+    </div>
+    <div id="zoomStatus" class="zoom-status">Dia inteiro</div>
+  </div>
+
+  <div class="time-selection-controls">
+    <label>Início
+      <input id="startTimeInput" type="time" step="60">
+    </label>
+    <label>Fim
+      <input id="endTimeInput" type="time" step="60">
+    </label>
+    <button id="applyTimeSelectionBtn" class="primary">Aplicar horários</button>
+    <button id="zoomSelectionBtn" disabled>Zoom na seleção</button>
+    <div id="timeSelectionError" class="field-error hidden"></div>
+  </div>
+
+  <div class="selection-help">
+    <span><strong>1.</strong> Clique e arraste para criar uma seleção.</span>
+    <span><strong>2.</strong> Depois, arraste os marcadores <b class="marker-sample start"></b> início e <b class="marker-sample end"></b> fim.</span>
+    <span><strong>3.</strong> Ou digite os horários acima, por exemplo <code>14:40</code> a <code>14:50</code>.</span>
+  </div>
+
   <div class="day-chart-wrap">
-    <canvas id="dayCanvas" width="1200" height="460"></canvas>
+    <canvas id="dayCanvas" width="1200" height="500"></canvas>
   </div>
   <div id="overviewEmpty" class="notice">Importe primeiro um CSV de candles de 1 ou 2 minutos.</div>
   <div id="selectionInfo" class="selection-info hidden">
     <div><small>Intervalo selecionado</small><strong id="selectionLabel">—</strong></div>
     <div><small>Candles</small><strong id="selectionCount">0</strong></div>
+    <div><small>Como ajustar</small><strong>Arraste INÍCIO/FIM ou edite os horários</strong></div>
     <button id="clearSelectionBtn">Limpar seleção</button>
   </div>
 </section>
