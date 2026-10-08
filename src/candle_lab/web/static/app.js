@@ -368,7 +368,7 @@ function aggressionIntensityLabel(x){
   return ({SEM_AGRESSAO_DIRECIONADA:'Sem direção',BAIXA:'Baixa',MODERADA:'Moderada',ALTA:'Alta',EXTREMA:'Extrema'})[x]||x;
 }
 function aggressionResponseLabel(x){
-  return ({IMPULSO_COMPATIVEL:'Impulso compatível',POSSIVEL_ABSORCAO:'Possível absorção',PRESSAO_SEM_CONFIRMACAO:'Pressão sem confirmação',DISPUTA_OU_INDEFINIDA:'Disputa / indefinida'})[x]||x;
+  return ({IMPULSO_COMPATIVEL:'Impulso compatível',POSSIVEL_ABSORCAO:'Possível absorção',PRESSAO_SEM_CONFIRMACAO:'Pressão sem confirmação',DISPUTA_OU_INDEFINIDA:'Disputa / indefinida',SEM_JANELA_POS_AGRESSAO:'Sem janela pós-agressão'})[x]||x;
 }
 function topAgentText(rows){
   if(!rows||!rows.length)return '—';
@@ -386,6 +386,7 @@ function renderAggression(d){
     ['Venda agressora',n(sm.sell_aggression,0)],
     ['Delta',n(sm.delta,0)],
     ['Cobertura agressor',pct(sm.aggressor_coverage)],
+    ['Identidade agente',pct(sm.agent_identity_coverage)],
     ['Direção',sm.direction],
     ['RLP',n(sm.rlp_volume,0)]
   ];
@@ -406,7 +407,7 @@ function renderAggression(d){
       '<td>'+aggressionResponseLabel(x.response)+'<br><small>'+n(x.visits,0)+' visita(s) · favorável '+n(x.favorable_excursion_ticks_after_level,0)+' tick(s)</small></td>'+
     '</tr>';
   }).join('');
-  $('aggressionMethod').textContent=a.method+' '+a.limitations;
+  $('aggressionMethod').textContent=a.method+' '+a.intensity_method+' '+a.limitations;
 }
 
 function renderDetail(){
