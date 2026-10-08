@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.16.0 — 2026-10-08
+- adiciona detecção causal de ondas de agressão BUY/SELL por janela móvel de negócios;
+- identifica término por `EXAUSTAO`, `NEUTRALIZACAO` e `TROCA_CONTROLE`;
+- registra instante, negócio, preço, queda da pressão, duração e principais agentes de cada onda;
+- mantém ondas ainda ativas como `ABERTA_NO_FIM_DO_CANDLE`, sem inventar término;
+- adiciona avaliação posterior separada como `REVERSAO_COMPATIVEL`, `CONTINUACAO`, `ESTAGNACAO_OU_DISPUTA` ou `SEM_JANELA_POSTERIOR`;
+- marca explicitamente que a avaliação posterior usa dados futuros e não participa da detecção;
+- replay só revela um término depois do negócio que o confirmou;
+- gráfico intrabar recebe marcadores T1/T2/T3 para os términos confirmados;
+- adiciona teste que garante que anexar negócios futuros não altera retroativamente o instante detectado;
+- adiciona documentação metodológica em `docs/TERMINO-ONDAS-AGRESSAO.md`.
+
+
 ## 0.15.0 — 2026-10-08
 - adiciona análise de agressão executada por nível de preço;
 - identifica principais agentes compradores e vendedores agressores no candle e em cada preço;
