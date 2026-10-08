@@ -7,7 +7,7 @@ from pathlib import Path
 from candle_lab.candles import build_candles
 from candle_lab.counterfactual import generate_ohlc_path
 from candle_lab.models import Trade
-from candle_lab.importers import import_csv_with_report
+from candle_lab.importers import import_csv_with_report, _decimal_number, _profit_decimal_number
 from candle_lab.reconciliation import import_reference_candles, reconcile_observed_window, reconcile_available_candles
 from candle_lab.sample import generate_builtin_sample
 from candle_lab.storage import MarketStore
@@ -290,6 +290,28 @@ class BulkImportTests(unittest.TestCase):
             self.assertEqual(len(store.load_trades("WINRESUME")), 1001)
 
 
+class ProfitNumberTests(unittest.TestCase):
+    def test_profit_dot_grouped_price_uses_brazilian_thousands(self):
+        self.assertEqual(_profit_decimal_number("205.935"), 205935)
+        self.assertEqual(_profit_decimal_number("5.321,5"), 5321.5)
+        self.assertEqual(_profit_decimal_number("205935"), 205935)
+        # A regra genérica continua diferente: ponto isolado permanece decimal.
+        self.assertEqual(_decimal_number("205.935"), 205.935)
+
+    def test_profit_dot_grouped_price_is_valid_for_win_tick(self):
+        content = (
+            "WINBR,07/10/26,10:01:00,3 - Comprador,205.935,1,85 - Vendedor,Comprador\n"
+            "WINBR,07/10/26,10:00:59,3 - Comprador,205.930,2,85 - Vendedor,Vendedor\n"
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            path=Path(tmp)/"WINBR.csv"
+            path.write_text(content,encoding="cp1252")
+            trades,report=import_csv_with_report(path,symbol="WINBR",tick_size=5.0,source="profit_csv")
+            self.assertEqual(len(trades),2)
+            self.assertEqual([t.price_ticks for t in trades],[41186,41187])
+            self.assertEqual(report.source_order,"DESCENDING")
+
+
 class SelectiveSliceTests(unittest.TestCase):
     def test_selective_slice_uses_half_open_interval_and_preserves_profit_order(self):
         content = (
@@ -451,8 +473,12 @@ class SelectiveSliceTests(unittest.TestCase):
             source = root / "WINIDX_FULL.csv"
             source.write_text(content, encoding="cp1252")
 
-            index = build_time_index(source,index_dir=root/"indexes",symbol="WINIDX")
+            progress=[]
+            index = build_time_index(source,index_dir=root/"indexes",symbol="WINIDX",progress=progress.append)
             self.assertEqual(index.rows,6)
+            self.assertTrue(progress)
+            self.assertEqual(progress[-1]["percent"],100.0)
+            self.assertEqual(progress[-1]["bytes_processed"],progress[-1]["bytes_total"])
             self.assertEqual(index.source_order,"DESCENDING")
             self.assertEqual(len(index.buckets),4)
 
@@ -569,6 +595,7 @@ class UiContractTests(unittest.TestCase):
             "zoomRange","zoomInBtn","zoomOutBtn","panLeftBtn","panRightBtn","resetZoomBtn",
             "startTimeInput","endTimeInput","applyTimeSelectionBtn","zoomSelectionBtn",
             "dayCanvas","selectionLabel","selectionCount","locateBtn","sliceBtn",
+            "indexProgressWrap","indexProgressPct","indexProgressText","indexProgressBar",
         ]
         for control_id in required_ids:
             self.assertIn(f'id="{control_id}"', html)
@@ -577,6 +604,8 @@ class UiContractTests(unittest.TestCase):
         self.assertIn("INÍCIO", js)
         self.assertIn("FIM", js)
         self.assertIn("Ctrl", html)
+        self.assertIn("/api/time-index/start", js)
+        self.assertIn("/api/time-index/jobs/", js)
 
 class StorageTests(unittest.TestCase):
     def test_duckdb_and_parquet_roundtrip(self):
