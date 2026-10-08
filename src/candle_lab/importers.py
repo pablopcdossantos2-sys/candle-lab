@@ -168,7 +168,8 @@ def _profile(fieldnames: list[str]) -> str:
         and bool({"quantidade","qtd","quantity","qty"} & normalized)
     )
     profit_specific = bool({
-        "agressor","agente comprador","agente vendedor","numero do negocio","numero negocio"
+        "agressor","agressao","tipo agressao","tipo de agressao","lado da agressao",
+        "agente comprador","agente vendedor","numero do negocio","numero negocio"
     } & normalized)
     if profit_core and profit_specific:
         return "Nelogica / Profit — Tick by Tick com cabeçalho"
@@ -317,6 +318,16 @@ def _import_profit_headerless(
             f"{rlp_count} registro(s) foram marcados como RLP pela fonte. "
             "Eles são preservados no campo de flags e não são convertidos artificialmente em BUY/SELL."
         )
+    if known_aggressors == 0:
+        sample_values = ", ".join(
+            f"{key or '<vazio>'}={count}"
+            for key, count in sorted(raw_aggressors.items(), key=lambda item: (-item[1], item[0]))[:8]
+        )
+        warnings.append(
+            "Nenhum lado agressor BUY/SELL foi reconhecido neste arquivo. "
+            "As métricas de agressão devem ser tratadas como indisponíveis, não como zero. "
+            + (f"Valores brutos observados: {sample_values}." if sample_values else "")
+        )
     warnings.append(
         "Este layout não contém Número do Negócio e os timestamps têm precisão de 1 segundo. "
         "A sequência intrassegundo é preservada pela ordem do arquivo normalizada, mas não equivale a um identificador oficial de execução."
@@ -383,7 +394,8 @@ def import_csv_with_report(path: str | Path, *, symbol: str | None, tick_size: f
             "timestamp","datahora","data hora","datetime","data","date","session date","pregao",
             "hora","time","tempo","horario","preco","price","valor","preco negocio",
             "quantity","qtd","quantidade","qty","volume quantidade","numero do negocio","numero negocio",
-            "trade id","tradeid","aggressor","agressor","aggression","lado agressor","ativo","ticker","symbol",
+            "trade id","tradeid","aggressor","agressor","agressao","aggression","tipo agressao","tipo de agressao",
+            "lado agressor","lado da agressao","ativo","ticker","symbol",
             "agente comprador","comprador","buyer","buyer id","agente vendedor","vendedor","seller","seller id","after",
         }
         for norm, original in header_norm.items():
@@ -434,7 +446,10 @@ def import_csv_with_report(path: str | Path, *, symbol: str | None, tick_size: f
 
             buyer_id = _first(row, ("agente comprador","comprador","buyer","buyer_id","buyer id","corretora compradora"))
             seller_id = _first(row, ("agente vendedor","vendedor","seller","seller_id","seller id","corretora vendedora"))
-            agg_raw = _first(row, ("aggressor","agressor","aggression","lado agressor","agressor lado"))
+            agg_raw = _first(row, (
+                "aggressor","agressor","agressao","aggression","tipo agressao","tipo de agressao",
+                "lado agressor","lado da agressao","agressor lado"
+            ))
             after_raw = _first(row, ("after","after market","after-market"))
             row_symbol = user_symbol or inferred_file_symbol
             if not row_symbol:
