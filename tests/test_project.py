@@ -326,6 +326,31 @@ class SelectiveSliceTests(unittest.TestCase):
             self.assertEqual(report.source_order, "DESCENDING")
             self.assertEqual([t.ts.strftime("%H:%M:%S") for t in trades],
                              ["10:01:00","10:01:59","10:02:00","10:02:30"])
+            self.assertEqual((result.first_source_row,result.last_source_row),(2,5))
+
+            store=MarketStore(root/"lab.duckdb")
+            rows1=range(result.last_source_row,result.first_source_row-1,-1)
+            first_insert=store.add_selected_slice_trades(
+                trades,tick_size=5.0,source_fingerprint=result.source_fingerprint,source_rows=rows1
+            )
+            self.assertEqual(first_insert["inserted"],4)
+
+            output2=root/"slice2.csv"
+            result2=slice_profit_trades(
+                source,
+                start=datetime(2026,10,7,10,2,tzinfo=tz),
+                end=datetime(2026,10,7,10,4,tzinfo=tz),
+                output_path=output2,
+                symbol="WINSEL",
+            )
+            trades2,_=import_csv_with_report(output2,symbol="WINSEL",tick_size=5.0,source="selected_slice")
+            rows2=range(result2.last_source_row,result2.first_source_row-1,-1)
+            second_insert=store.add_selected_slice_trades(
+                trades2,tick_size=5.0,source_fingerprint=result2.source_fingerprint,source_rows=rows2
+            )
+            self.assertEqual(second_insert["inserted"],1)
+            self.assertEqual(second_insert["duplicates"],2)
+            self.assertEqual(len(store.load_trades("WINSEL")),5)
 
     def test_reference_overview_works_without_any_tick_trades(self):
         tz = ZoneInfo("America/Sao_Paulo")
