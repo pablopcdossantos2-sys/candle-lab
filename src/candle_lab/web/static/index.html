@@ -182,6 +182,30 @@
     <div id="aggressionMethod" class="notice"></div>
   </div>
 
+  <div class="aggression-wave-panel">
+    <div class="section-head">
+      <div>
+        <h3>Término das ondas de agressão</h3>
+        <p>Detecta causalmente quando uma pressão compradora/vendedora perde força, é neutralizada ou troca de lado.</p>
+      </div>
+      <span class="badge real">DETECÇÃO CAUSAL</span>
+    </div>
+    <div id="waveSummary" class="kpis"></div>
+    <div id="openWaveBox" class="notice hidden"></div>
+    <div class="table-wrap aggression-table-wrap">
+      <table class="aggression-table">
+        <thead>
+          <tr>
+            <th>Início</th><th>Lado</th><th>Término</th><th>Tipo</th><th>Queda da pressão</th>
+            <th>Preço no término</th><th>Principal agressor</th><th>Resultado posterior (EX-POST)</th>
+          </tr>
+        </thead>
+        <tbody id="waveBody"></tbody>
+      </table>
+    </div>
+    <div id="waveMethod" class="notice"></div>
+  </div>
+
   <div class="replay-bar"><button id="playBtn" class="primary">▶ Reproduzir</button><button id="stepBtn">Avançar 1 negócio</button><button id="resetBtn">Reiniciar</button><span id="replayState"></span></div>
   <div class="table-wrap trades"><table><thead><tr><th>#</th><th>Hora</th><th>Preço</th><th>Qtd.</th><th>Agressor</th><th>Comprador</th><th>Vendedor</th></tr></thead><tbody id="tradeBody"></tbody></table></div>
   <div class="counter"><h3>Caminho alternativo</h3><span class="badge simulation">SIMULAÇÃO CONTRAFACTUAL</span><canvas id="counterCanvas" width="700" height="180"></canvas></div>
