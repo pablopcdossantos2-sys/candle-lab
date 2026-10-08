@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.13.0 — 2026-10-07
+- índice temporal persistente de 1 minuto para o CSV Tick by Tick original;
+- mapeamento exato de candles para linhas físicas do arquivo;
+- distinção entre linha física, linha da abertura cronológica e linha do fechamento cronológico;
+- offsets de byte por minuto;
+- SHA-256 integral calculado durante a primeira indexação;
+- cache do índice em `data/indexes/*.cidx.json`;
+- agregação do índice M1 para candles M2/M5/M15;
+- endpoint `/api/time-index/locate`;
+- tabela de linhas na interface antes da extração;
+- recorte por `seek` direto nos bytes localizados;
+- comandos `index-trades` e `locate-lines`;
+- `slice-trades` passa a reutilizar o índice;
+- teste de igualdade byte a byte entre recorte indexado e varredura completa;
+- documentação metodológica e tutorial do localizador.
+
+
 ## 0.12.0 — 2026-10-07
 - fluxo recomendado alterado para visão geral → seleção → microestrutura;
 - gráfico diário construído apenas com o CSV leve de 1/2 minutos;
