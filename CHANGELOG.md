@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.14.1 — 2026-10-07
+- localizador seletivo deixa de exigir exclusivamente o layout sem cabeçalho de 8 colunas;
+- suporte a arquivos de Trades com cabeçalho reconhecível;
+- suporte a colunas extras em exportações do Profit;
+- suporte a layout sem cabeçalho de 9 colunas com Número do Negócio;
+- linhas exibidas passam a refletir a linha física real do CSV original, inclusive com cabeçalho;
+- valores brasileiros em CSV separado por ponto e vírgula são normalizados no recorte derivado;
+- formato do índice temporal atualizado para 1.1 e índices antigos são reconstruídos automaticamente.
+
+
 ## 0.14.0 — 2026-10-07
 - seleção de intervalo redesenhada no gráfico diário;
 - zoom horizontal em até 30 níveis;
