@@ -21,13 +21,23 @@ from ..transitions import analyze_stability_and_transitions
 from ..storage import MarketStore
 from ..sample import generate_builtin_sample
 from ..slice import slice_profit_trades
+from ..time_index import ensure_time_index, index_summary, locate_candles, locate_interval
 
 PACKAGE_DIR=Path(__file__).resolve().parent
 STATIC_DIR=PACKAGE_DIR/"static"
 PROJECT_ROOT=Path(__file__).resolve().parents[3]
 DEFAULT_DB=Path(os.environ.get("CANDLE_LAB_DB",PROJECT_ROOT/"data"/"candle_lab.duckdb"))
 DEFAULT_PARQUET=Path(os.environ.get("CANDLE_LAB_PARQUET",PROJECT_ROOT/"data"/"parquet"/"trades.parquet"))
-VERSION="0.12.0"
+VERSION="0.13.0"
+
+
+class TimeIndexRequest(BaseModel):
+    source_path: str
+    symbol: str
+    start: datetime
+    end: datetime
+    interval_seconds: int = 60
+    candle_starts: list[datetime] = []
 
 
 class SliceImportRequest(BaseModel):
@@ -36,6 +46,8 @@ class SliceImportRequest(BaseModel):
     start: datetime
     end: datetime
     tick_size: float = 5.0
+    interval_seconds: int = 60
+    candle_starts: list[datetime] = []
 
 
 def create_app(db_path:str|Path=DEFAULT_DB)->FastAPI:
@@ -128,6 +140,28 @@ def create_app(db_path:str|Path=DEFAULT_DB)->FastAPI:
         except Exception as exc:raise HTTPException(status_code=400,detail=str(exc)) from exc
         finally:temp_path.unlink(missing_ok=True)
 
+    @app.post("/api/time-index/locate")
+    def time_index_locate(request:TimeIndexRequest):
+        symbol=request.symbol.strip().upper()
+        if not symbol:raise HTTPException(status_code=400,detail="Informe o contrato real.")
+        if request.end <= request.start:raise HTTPException(status_code=400,detail="O fim precisa ser posterior ao início.")
+        if request.interval_seconds <= 0:raise HTTPException(status_code=400,detail="interval_seconds deve ser positivo.")
+        try:
+            index,built=ensure_time_index(
+                request.source_path,index_dir=PROJECT_ROOT/"data"/"indexes",symbol=symbol
+            )
+            interval=locate_interval(index,start=request.start,end=request.end)
+            starts=request.candle_starts or [request.start]
+            candles=locate_candles(index,candle_starts=starts,interval_seconds=request.interval_seconds)
+            return {
+                "index_built_now":built,
+                "index":index_summary(index),
+                "selection":interval,
+                "candles":candles,
+                "rule":"Uma linha pertence ao candle quando candle_start <= timestamp < candle_end.",
+            }
+        except Exception as exc:raise HTTPException(status_code=400,detail=str(exc)) from exc
+
     @app.post("/api/slice-import")
     def slice_import(request:SliceImportRequest):
         symbol=request.symbol.strip().upper()
@@ -137,11 +171,18 @@ def create_app(db_path:str|Path=DEFAULT_DB)->FastAPI:
         if duration > 3*60*60:
             raise HTTPException(status_code=400,detail="Selecione no máximo 3 horas por recorte para a análise profunda.")
         try:
+            index,built=ensure_time_index(
+                request.source_path,index_dir=PROJECT_ROOT/"data"/"indexes",symbol=symbol
+            )
+            located=locate_interval(index,start=request.start,end=request.end)
             output_dir=PROJECT_ROOT/"data"/"slices"
             output_name=f"{symbol}_{request.start.strftime('%Y%m%d-%H%M%S')}_{request.end.strftime('%H%M%S')}_TRADES.csv"
             sliced=slice_profit_trades(
                 request.source_path,start=request.start,end=request.end,
-                output_path=output_dir/output_name,symbol=symbol
+                output_path=output_dir/output_name,symbol=symbol,
+                seek_byte_start=int(located["byte_start"]),
+                seek_byte_end=int(located["byte_end"]),
+                source_row_base=int(located["source_row_min"])-1,
             )
             trades,report=import_csv_with_report(
                 sliced.output_path,symbol=symbol,tick_size=request.tick_size,source="profit_selected_slice"
@@ -160,9 +201,14 @@ def create_app(db_path:str|Path=DEFAULT_DB)->FastAPI:
                 rows_received=result["received"],rows_inserted=result["inserted"],duplicates=result["duplicates"],
                 diagnostics={"slice":sliced.to_dict(),"import":report.to_dict()}
             )
+            starts=request.candle_starts or [request.start]
+            line_map=locate_candles(index,candle_starts=starts,interval_seconds=request.interval_seconds)
             return {
                 "slice":sliced.to_dict(),"import":result,"report":report.to_dict(),
-                "message":"Recorte criado e importado. Agora selecione o pregão na Biblioteca para investigar os candles em profundidade."
+                "time_index":{"built_now":built,**index_summary(index)},
+                "selection_locator":located,
+                "candle_line_map":line_map,
+                "message":"Recorte indexado criado e importado. A extração saltou diretamente para a região de bytes do intervalo selecionado."
             }
         except Exception as exc:raise HTTPException(status_code=400,detail=str(exc)) from exc
 
