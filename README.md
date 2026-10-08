@@ -2,7 +2,7 @@
 
 **Laboratório local para investigar como candles de futuros da B3 são formados negócio a negócio.**
 
-Versão atual: **0.17.0**
+Versão atual: **0.18.0**
 
 O Candle Lab B3 nasceu de uma pergunta simples: **dois candles visualmente parecidos necessariamente foram formados da mesma maneira?**
 
@@ -606,7 +606,11 @@ Para aprofundar o projeto:
 - `docs/INDICE-TEMPORAL-LINHAS.md` — regra exata candle → linhas → bytes;
 - `docs/TUTORIAL-LOCALIZAR-LINHAS.md` — tutorial para preparar o índice e localizar candles;
 - `docs/VALIDACAO-INDICE-TEMPORAL-V013.md` — validação do mapa de linhas/bytes com o recorte real do WINV26;
-- `docs/TUTORIAL-VALIDACAO-PREGAO-COMPLETO.md` — auditoria opcional do pregão inteiro.
+- `docs/TUTORIAL-VALIDACAO-PREGAO-COMPLETO.md` — auditoria opcional do pregão inteiro;
+- `docs/VALIDACAO-HISTORICA-HIPOTESES.md` — validação de repetibilidade e desfechos externos das hipóteses;
+- `docs/INDICADORES-POSSIVEIS-CANDLE-LAB.md` — catálogo e viabilidade de indicadores derivados da pesquisa;
+- `prompts/PROMPTS-TRADINGVIEW-PINE-CANDLE-LAB.md` — prompts detalhados para Pine Script;
+- `prompts/PROMPTS-PROFIT-NTSL-CANDLE-LAB.md` — prompts detalhados para NTSL/Profit.
 
 ---
 
@@ -754,3 +758,31 @@ O relatório possui score de evidência e score por hipótese. **Esses scores n�
 Durante o replay, o relatório pós-fechamento fica oculto e só reaparece quando o candle termina.
 
 Veja `docs/RELATORIO-INTERPRETATIVO-CANDLE.md`.
+
+
+## Validação histórica e planejamento de indicadores — v0.18.0
+
+A v0.18 transforma as hipóteses interpretativas em um estudo histórico reproduzível.
+
+Na seção **Validação histórica das hipóteses**, o Candle Lab:
+
+- conta quantas vezes cada hipótese aparece;
+- exige candles futuros contíguos no mesmo pregão;
+- usa referência EXACT quando ela está disponível;
+- exclui dados sintéticos por padrão;
+- mede resultados em horizontes configuráveis, inicialmente 1, 3 e 5 candles;
+- calcula taxa direcional, movimento de pelo menos 2 ticks, excursão favorável/adversa;
+- compara a taxa com o baseline da própria biblioteca;
+- calcula lift em pontos percentuais;
+- fornece intervalo Wilson de 95%;
+- marca o tamanho da amostra como insuficiente, exploratória, preliminar ou maior.
+
+A camada não declara a narrativa causal do mesmo candle como “validada”. Ela mede **repetibilidade e consequência externa**.
+
+Também foram adicionados:
+
+- `docs/INDICADORES-POSSIVEIS-CANDLE-LAB.md`;
+- `prompts/PROMPTS-TRADINGVIEW-PINE-CANDLE-LAB.md`;
+- `prompts/PROMPTS-PROFIT-NTSL-CANDLE-LAB.md`.
+
+O objetivo é usar os resultados históricos do Candle Lab como funil de seleção antes de escrever indicadores para TradingView ou Profit.
