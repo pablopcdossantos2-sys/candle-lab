@@ -6,6 +6,7 @@ from math import log
 
 from .aggression import aggression_analysis
 from .aggression_waves import aggression_wave_analysis
+from .interpretation import interpret_candle
 from .candles import build_candles, group_trades_by_candle, trade_sort_key
 from .counterfactual import generate_ohlc_path
 from .metrics import CandleDNA, candle_dna
@@ -102,6 +103,17 @@ def candle_detail_payload(trades: list[Trade], interval_seconds: int, tick_size:
             }
         )
 
+    aggression = aggression_analysis(ordered, tick_size)
+    aggression_waves = aggression_wave_analysis(ordered, tick_size)
+    interpretation = interpret_candle(
+        ordered,
+        candle=candle,
+        dna=dna,
+        aggression=aggression,
+        waves=aggression_waves,
+        tick_size=tick_size,
+    )
+
     points = max(16, min(160, len(ordered)))
     counterfactual_ticks = generate_ohlc_path(
         candle.open_ticks,
@@ -125,8 +137,9 @@ def candle_detail_payload(trades: list[Trade], interval_seconds: int, tick_size:
             }
             for p, stats in sorted(volume_by_price.items(), reverse=True)
         ],
-        "aggression": aggression_analysis(ordered, tick_size),
-        "aggression_waves": aggression_wave_analysis(ordered, tick_size),
+        "aggression": aggression,
+        "aggression_waves": aggression_waves,
+        "interpretation": interpretation,
         "counterfactual": {
             "label": "SIMULAÇÃO CONTRAFACTUAL — NÃO É REPLAY HISTÓRICO",
             "seed": seed,
