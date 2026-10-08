@@ -160,8 +160,17 @@ def _detect_dialect(text: str) -> csv.Dialect:
 
 def _profile(fieldnames: list[str]) -> str:
     normalized = {_norm_header(x) for x in fieldnames}
-    nelogica_core = {"ativo","data","tempo","numero do negocio","preco","quantidade","agressor"}
-    if len(nelogica_core & normalized) >= 6:
+    profit_core = (
+        bool({"ativo","ticker","symbol"} & normalized)
+        and bool({"data","date"} & normalized)
+        and bool({"hora","tempo","time","horario"} & normalized)
+        and bool({"preco","price","valor","preco negocio"} & normalized)
+        and bool({"quantidade","qtd","quantity","qty"} & normalized)
+    )
+    profit_specific = bool({
+        "agressor","agente comprador","agente vendedor","numero do negocio","numero negocio"
+    } & normalized)
+    if profit_core and profit_specific:
         return "Nelogica / Profit — Tick by Tick com cabeçalho"
     if "timestamp" in normalized and ({"price", "preco"} & normalized) and ({"quantity", "quantidade", "qtd"} & normalized):
         return "CSV genérico — timestamp único"
