@@ -72,6 +72,8 @@ function invalidateLocatedSlice(){
   $('lineMapWrap').classList.add('hidden');
   $('indexProgressWrap').classList.add('hidden');
   $('indexProgressBar').style.width='0%';
+  $('sliceProgressWrap').classList.add('hidden');
+  $('sliceProgressBar').style.width='0%';
   $('sliceResult').textContent='Prepare primeiro o índice temporal para esta seleção.';
 }
 
@@ -474,6 +476,43 @@ async function runIndexJob(payload){
   }
 }
 
+function showSliceProgress(progress={},status='running'){
+  $('sliceProgressWrap').classList.remove('hidden');
+  const pct=Math.max(0,Math.min(100,Number(progress.percent||0)));
+  $('sliceProgressPct').textContent=pct.toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1})+'%';
+  $('sliceProgressBar').style.width=pct+'%';
+
+  const phase=progress.phase||status;
+  const message=progress.message||'Processando o recorte…';
+  const done=Number(progress.bytes_processed||0),total=Number(progress.bytes_total||0);
+  const matched=Number(progress.matched_rows||progress.trades||0);
+
+  let detail=message;
+  if(phase==='extract'&&total>0){
+    detail+=' · '+formatBytes(done)+' de '+formatBytes(total);
+    if(matched)detail+=' · '+n(matched,0)+' negócios';
+  }else if(phase==='store'&&progress.trades){
+    detail+=' · '+n(progress.trades,0)+' negócios';
+  }else if(phase==='catalog'&&progress.inserted!=null){
+    detail+=' · '+n(progress.inserted,0)+' inseridos';
+    if(progress.duplicates)detail+=' · '+n(progress.duplicates,0)+' já existentes';
+  }
+  $('sliceProgressText').textContent=detail;
+}
+
+async function runSliceJob(payload){
+  const started=await api('/api/slice-import/start',{
+    method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)
+  });
+  while(true){
+    const job=await api('/api/slice-import/jobs/'+encodeURIComponent(started.job_id));
+    showSliceProgress(job.progress||{},job.status);
+    if(job.status==='completed')return job.result;
+    if(job.status==='failed')throw new Error(job.error||'Falha durante o recorte/importação.');
+    await sleep(350);
+  }
+}
+
 function selectedCandleStarts(){
   if(!state.selection)return[];
   return state.overviewCandles
@@ -540,21 +579,30 @@ $('sliceBtn').onclick=async()=>{
   if(!state.selection||!state.overviewMeta||!state.indexLocation)return;
   const path=$('localTradesPath').value.trim();
   if(!path){$('sliceResult').textContent='Cole primeiro o caminho do CSV grande de Trades.';return}
-  $('sliceBtn').disabled=true;$('sliceResult').textContent='Saltando para os bytes localizados e extraindo somente o intervalo selecionado…';
+  $('sliceBtn').disabled=true;
+  showSliceProgress({percent:0,phase:'queued',message:'Preparando a tarefa de recorte.'},'queued');
+  $('sliceResult').textContent='Recortando e importando o intervalo. O progresso aparece acima.';
   try{
     const payload={
       source_path:path,symbol:state.overviewMeta.symbol,start:state.selection.start,end:state.selection.end,
       tick_size:Number($('sliceTickInput').value),interval_seconds:state.overviewMeta.interval_seconds,
       candle_starts:selectedCandleStarts()
     };
-    const r=await api('/api/slice-import',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    const r=await runSliceJob(payload);
+    showSliceProgress({
+      percent:100,phase:'completed',
+      message:'Recorte criado, validado e importado com sucesso.',
+      inserted:r.import&&r.import.inserted,duplicates:r.import&&r.import.duplicates
+    },'completed');
     $('sliceResult').textContent='Recorte concluído por acesso indexado.\n\n'+JSON.stringify(r,null,2);
     await refresh();
     if([...$('symbolSelect').options].some(o=>o.value===payload.symbol)){$('symbolSelect').value=payload.symbol;await loadSessions()}
     const date=state.overviewMeta.session_date;
     if([...$('sessionSelect').options].some(o=>o.value===date)){$('sessionSelect').value=date;$('intervalSelect').value=String(state.overviewMeta.interval_seconds);await loadCandles()}
-  }catch(err){$('sliceResult').textContent='Erro: '+err.message}
-  finally{$('sliceBtn').disabled=false}
+  }catch(err){
+    $('sliceProgressWrap').classList.add('hidden');
+    $('sliceResult').textContent='Erro: '+err.message;
+  }finally{$('sliceBtn').disabled=false}
 };
 
 $('sampleBtn').onclick=async()=>{try{$('sampleBtn').disabled=true;await api('/api/load-sample',{method:'POST'});await Promise.all([refresh(),refreshOverview('WINLAB06')])}catch(e){alert(e.message)}finally{$('sampleBtn').disabled=false}};
