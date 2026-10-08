@@ -63,3 +63,21 @@ OHLC diário permanece em `reference_candles`.
 Recortes Tick são gravados em `data/slices` e importados para `trades`.
 
 A ingestão integral `bulk.py` continua disponível, mas é considerada um modo avançado e não o caminho padrão.
+
+
+## Idempotência entre recortes
+
+Cada recorte registra:
+
+- uma impressão digital rápida da fonte original (tamanho + blocos inicial/final);
+- o ordinal da linha não vazia na fonte.
+
+A chave derivada `fingerprint + source_row` evita duplicar negócios quando recortes se sobrepõem.
+
+A impressão digital rápida não é apresentada como SHA-256 integral da fonte; seu objetivo é identidade operacional sem exigir uma segunda leitura completa de centenas de MB.
+
+## Reconciliação de ilhas
+
+Como o usuário pode importar trechos não contíguos, a reconciliação no modo seletivo usa apenas candles que possuem Trades armazenados.
+
+Candles fora das seleções são ignorados deliberadamente, em vez de classificados como `NO_DATA`.
