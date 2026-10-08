@@ -470,7 +470,30 @@ function renderInterpretation(d){
 
 function renderAggression(d){
   const a=d.aggression;if(!a)return;
-  const sm=a.summary;
+  const sm=a.summary||{};
+  const available=sm.aggression_data_available!==false && Number(sm.directed_aggression||0)>0;
+
+  if(!available){
+    const items=[
+      ['Status','Dado de agressão indisponível'],
+      ['Cobertura agressor',pct(sm.aggressor_coverage||0)],
+      ['Volume total',n(sm.total_volume||0,0)],
+      ['RLP',n(sm.rlp_volume||0,0)],
+      ['Sem lado identificado',n(sm.unknown_volume||0,0)]
+    ];
+    $('aggressionKpis').innerHTML=items.map(v=>'<div class="kpi"><span>'+esc(v[0])+'</span><strong>'+esc(v[1])+'</strong></div>').join('');
+    $('topBuyAggressors').innerHTML='<p class="muted">Ranking indisponível: nenhum BUY reconhecido.</p>';
+    $('topSellAggressors').innerHTML='<p class="muted">Ranking indisponível: nenhum SELL reconhecido.</p>';
+    $('aggressionBody').innerHTML=
+      '<tr><td colspan="9"><strong>Não há dados suficientes para calcular agressão por preço.</strong><br>'+
+      '<small>O candle possui negócios e volume, mas nenhum lado agressor BUY/SELL foi reconhecido. '+
+      'Cobertura 0% significa dado indisponível, não ausência real de agressão no mercado.</small></td></tr>';
+    $('aggressionMethod').textContent=
+      'A análise de agressão foi suspensa para este candle porque a fonte/importação não forneceu lado agressor reconhecível. '+
+      'Verifique o diagnóstico de importação e a coluna Agressor/Agressão do CSV.';
+    return;
+  }
+
   const items=[
     ['Compra agressora',n(sm.buy_aggression,0)],
     ['Venda agressora',n(sm.sell_aggression,0)],
@@ -499,7 +522,6 @@ function renderAggression(d){
   }).join('');
   $('aggressionMethod').textContent=a.method+' '+a.intensity_method+' '+a.limitations;
 }
-
 function waveTypeLabel(x){
   return ({EXAUSTAO:'Exaustão',NEUTRALIZACAO:'Neutralização',TROCA_CONTROLE:'Troca de controle'})[x]||x;
 }
