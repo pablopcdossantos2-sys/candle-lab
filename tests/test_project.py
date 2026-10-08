@@ -4,6 +4,7 @@ from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 from pathlib import Path
 
+from candle_lab.aggression import aggression_analysis
 from candle_lab.candles import build_candles
 from candle_lab.counterfactual import generate_ohlc_path
 from candle_lab.models import Trade
@@ -35,6 +36,63 @@ def trades_from_prices(start, prices, symbol="WINTEST"):
         )
         for i, price in enumerate(prices)
     ]
+
+
+class AggressionAnalysisTests(unittest.TestCase):
+    def test_identifies_top_agents_and_price_level_intensity(self):
+        tz=ZoneInfo("America/Sao_Paulo")
+        start=datetime(2026,10,7,14,40,tzinfo=tz)
+        trades=[
+            Trade("WINAGG",start+timedelta(seconds=1),100,80,aggressor=AggressorSide.BUY,buyer_id="A",seller_id="P1",sequence_no=1),
+            Trade("WINAGG",start+timedelta(seconds=2),100,40,aggressor=AggressorSide.BUY,buyer_id="A",seller_id="P2",sequence_no=2),
+            Trade("WINAGG",start+timedelta(seconds=3),100,20,aggressor=AggressorSide.SELL,buyer_id="P3",seller_id="S1",sequence_no=3),
+            Trade("WINAGG",start+timedelta(seconds=10),101,30,aggressor=AggressorSide.BUY,buyer_id="B",seller_id="P4",sequence_no=4),
+            Trade("WINAGG",start+timedelta(seconds=20),102,12,aggressor=AggressorSide.SELL,buyer_id="P5",seller_id="S2",sequence_no=5),
+            Trade("WINAGG",start+timedelta(seconds=30),103,5,aggressor=AggressorSide.BUY,buyer_id="C",seller_id="P6",sequence_no=6),
+        ]
+        report=aggression_analysis(trades,5.0)
+        self.assertEqual(report["summary"]["buy_aggression"],155)
+        self.assertEqual(report["summary"]["sell_aggression"],32)
+        self.assertEqual(report["summary"]["delta"],123)
+        self.assertEqual(report["top_buy_aggressors"][0]["agent"],"A")
+        self.assertEqual(report["top_buy_aggressors"][0]["quantity"],120)
+        level100=next(x for x in report["levels"] if x["price_ticks"]==100)
+        self.assertEqual(level100["buy_aggression"],120)
+        self.assertEqual(level100["sell_aggression"],20)
+        self.assertEqual(level100["top_buy_aggressors"][0]["agent"],"A")
+        self.assertIn(level100["intensity"],{"ALTA","EXTREMA"})
+        self.assertGreater(level100["dominance"],0.70)
+
+    def test_sell_aggressor_uses_seller_identity_and_rlp_stays_separate(self):
+        tz=ZoneInfo("America/Sao_Paulo")
+        start=datetime(2026,10,7,14,40,tzinfo=tz)
+        trades=[
+            Trade("WINAGG",start,200,50,aggressor=AggressorSide.SELL,buyer_id="PASSIVO",seller_id="VENDEDOR_X",sequence_no=1),
+            Trade("WINAGG",start+timedelta(seconds=1),200,25,aggressor=AggressorSide.NONE,buyer_id="RLP_B",seller_id="RLP_S",flags="raw_aggressor=RLP",sequence_no=2),
+            Trade("WINAGG",start+timedelta(seconds=2),201,10,aggressor=AggressorSide.NONE,buyer_id="U1",seller_id="U2",sequence_no=3),
+        ]
+        report=aggression_analysis(trades,5.0)
+        self.assertEqual(report["top_sell_aggressors"][0]["agent"],"VENDEDOR_X")
+        self.assertEqual(report["summary"]["sell_aggression"],50)
+        self.assertEqual(report["summary"]["rlp_volume"],25)
+        self.assertEqual(report["summary"]["unknown_volume"],10)
+        self.assertEqual(report["summary"]["directed_aggression"],50)
+        self.assertAlmostEqual(report["summary"]["aggressor_coverage"],50/85)
+
+    def test_possible_absorption_is_only_heuristic_label(self):
+        tz=ZoneInfo("America/Sao_Paulo")
+        start=datetime(2026,10,7,14,40,tzinfo=tz)
+        trades=[
+            Trade("WINAGG",start+timedelta(seconds=1),100,100,aggressor=AggressorSide.BUY,buyer_id="A",sequence_no=1),
+            Trade("WINAGG",start+timedelta(seconds=2),100,100,aggressor=AggressorSide.BUY,buyer_id="A",sequence_no=2),
+            Trade("WINAGG",start+timedelta(seconds=3),101,5,aggressor=AggressorSide.SELL,seller_id="S",sequence_no=3),
+            Trade("WINAGG",start+timedelta(seconds=4),100,10,aggressor=AggressorSide.BUY,buyer_id="A",sequence_no=4),
+            Trade("WINAGG",start+timedelta(seconds=5),100,10,aggressor=AggressorSide.BUY,buyer_id="A",sequence_no=5),
+        ]
+        report=aggression_analysis(trades,5.0)
+        level100=next(x for x in report["levels"] if x["price_ticks"]==100)
+        self.assertEqual(level100["response"],"POSSIVEL_ABSORCAO")
+        self.assertIn("não prova causal",report["limitations"])
 
 
 class CoreTests(unittest.TestCase):
