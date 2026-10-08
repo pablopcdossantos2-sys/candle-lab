@@ -419,7 +419,8 @@ function waveOutcomeLabel(x){
 function drawWaveTerminationMarkers(canvas,d){
   const waves=d.aggression_waves;if(!waves||!waves.termination_events||!waves.termination_events.length)return;
   const ctx=canvas.getContext('2d'),w=canvas.width,h=canvas.height;
-  const total=Math.max(d.timeline.length-1,1);
+  const visibleCount=Math.max(1,Math.min(state.replay,d.timeline.length));
+  const total=Math.max(visibleCount-1,1);
   const visibleEvents=waves.termination_events.filter(e=>e.end_index<state.replay);
   visibleEvents.forEach((e,i)=>{
     const x=18+(w-36)*(e.end_index/total);
