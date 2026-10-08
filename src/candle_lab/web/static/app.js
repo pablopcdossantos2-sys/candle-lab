@@ -494,14 +494,24 @@ function renderAggression(d){
     return;
   }
 
+  const relationLabel=({
+    ALINHADO:'Preço e agressão alinhados',
+    DIVERGENTE:'Divergência preço × agressão',
+    FLUXO_EQUILIBRADO:'Fluxo agressor equilibrado',
+    PRECO_NEUTRO:'Preço neutro',
+    DADOS_INSUFICIENTES:'Dados insuficientes'
+  })[sm.price_flow_relation]||sm.price_flow_relation||'—';
   const items=[
-    ['Compra agressora',n(sm.buy_aggression,0)],
-    ['Venda agressora',n(sm.sell_aggression,0)],
+    ['Compra agressora',n(sm.buy_aggression,0)+' · '+pct(sm.buy_share_total_volume||0)],
+    ['Venda agressora',n(sm.sell_aggression,0)+' · '+pct(sm.sell_share_total_volume||0)],
+    ['RLP',n(sm.rlp_volume,0)+' · '+pct(sm.rlp_share_total_volume||0)],
+    ['Sem classificação',n(sm.unknown_volume,0)+' · '+pct(sm.unknown_share_total_volume||0)],
     ['Delta',n(sm.delta,0)],
+    ['BUY entre agressões conhecidas',pct(sm.buy_share_directed||0)],
+    ['SELL entre agressões conhecidas',pct(sm.sell_share_directed||0)],
     ['Cobertura agressor',pct(sm.aggressor_coverage)],
-    ['Identidade agente',pct(sm.agent_identity_coverage)],
-    ['Direção',sm.direction],
-    ['RLP',n(sm.rlp_volume,0)]
+    ['Relação preço × fluxo',relationLabel],
+    ['Prioridade de estudo',sm.study_priority||'—']
   ];
   $('aggressionKpis').innerHTML=items.map(v=>'<div class="kpi"><span>'+v[0]+'</span><strong>'+v[1]+'</strong></div>').join('');
   $('topBuyAggressors').innerHTML=agentRankingHtml(a.top_buy_aggressors);
