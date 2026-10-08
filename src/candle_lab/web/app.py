@@ -4,6 +4,7 @@ from datetime import date, datetime, timedelta
 import os
 import threading
 import uuid
+from typing import Callable
 from pathlib import Path
 import tempfile
 
@@ -255,7 +256,7 @@ def create_app(db_path:str|Path=DEFAULT_DB)->FastAPI:
 
     def _execute_slice_import(
         request:SliceImportRequest,
-        progress:callable|None=None,
+        progress:Callable[[dict[str,object]],None]|None=None,
     )->dict[str,object]:
         symbol=_validate_slice_request(request)
 
