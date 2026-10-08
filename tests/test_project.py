@@ -751,6 +751,43 @@ class SelectiveSliceTests(unittest.TestCase):
             self.assertEqual(second_insert["duplicates"],2)
             self.assertEqual(len(store.load_trades("WINSEL")),5)
 
+    def test_selected_slice_reimport_enriches_missing_aggressor(self):
+        tz=ZoneInfo("America/Sao_Paulo")
+        ts=datetime(2026,10,7,10,0,tzinfo=tz)
+        fingerprint="abc123"
+        source_rows=[42]
+        with tempfile.TemporaryDirectory() as tmp:
+            store=MarketStore(Path(tmp)/"lab.duckdb")
+            old=[
+                Trade(
+                    "WINFIX",ts,40000,7,aggressor=AggressorSide.NONE,
+                    buyer_id=None,seller_id=None,sequence_no=1,source="profit_selected_slice"
+                )
+            ]
+            first=store.add_selected_slice_trades(
+                old,tick_size=5.0,source_fingerprint=fingerprint,source_rows=source_rows
+            )
+            self.assertEqual(first["inserted"],1)
+
+            repaired=[
+                Trade(
+                    "WINFIX",ts,40000,7,aggressor=AggressorSide.BUY,
+                    buyer_id="3 - XP",seller_id="85 - BTG",sequence_no=1,
+                    flags="raw_aggressor=Comprador",source="profit_selected_slice"
+                )
+            ]
+            second=store.add_selected_slice_trades(
+                repaired,tick_size=5.0,source_fingerprint=fingerprint,source_rows=source_rows
+            )
+            self.assertEqual(second["inserted"],0)
+            self.assertEqual(second["duplicates"],1)
+            self.assertEqual(second["enriched"],1)
+            stored=store.load_trades("WINFIX")
+            self.assertEqual(stored[0].aggressor,AggressorSide.BUY)
+            self.assertEqual(stored[0].buyer_id,"3 - XP")
+            self.assertEqual(stored[0].seller_id,"85 - BTG")
+            self.assertIn("raw_aggressor=Comprador",stored[0].flags or "")
+
     def test_headered_profit_file_with_extra_column_is_indexed_and_sliced(self):
         content = (
             "Ativo;Data;Hora;Número do Negócio;Agente Comprador;Preço;Quantidade;Agente Vendedor;Agressor\n"
