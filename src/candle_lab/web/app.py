@@ -32,7 +32,7 @@ STATIC_DIR=PACKAGE_DIR/"static"
 PROJECT_ROOT=Path(__file__).resolve().parents[3]
 DEFAULT_DB=Path(os.environ.get("CANDLE_LAB_DB",PROJECT_ROOT/"data"/"candle_lab.duckdb"))
 DEFAULT_PARQUET=Path(os.environ.get("CANDLE_LAB_PARQUET",PROJECT_ROOT/"data"/"parquet"/"trades.parquet"))
-VERSION="0.18.0"
+VERSION="0.18.1"
 
 
 class TimeIndexRequest(BaseModel):
@@ -323,8 +323,12 @@ def create_app(db_path:str|Path=DEFAULT_DB)->FastAPI:
             sliced.output_path,symbol=symbol,tick_size=request.tick_size,source="profit_selected_slice"
         )
 
-        emit(90,"store","Negócios validados. Gravando o recorte na biblioteca local.",
-             trades=len(trades))
+        emit(
+            90,"store",
+            "Negócios validados. Gravando o recorte na biblioteca local.",
+            trades=len(trades),
+            aggressor_known_pct=report.aggressor_known_pct,
+        )
         if sliced.source_order=="DESCENDING":
             source_rows=range(sliced.last_source_row,sliced.first_source_row-1,-1)
         else:
@@ -346,6 +350,11 @@ def create_app(db_path:str|Path=DEFAULT_DB)->FastAPI:
         line_map=locate_candles(index,candle_starts=starts,interval_seconds=request.interval_seconds)
         payload={
             "slice":sliced.to_dict(),"import":result,"report":report.to_dict(),
+            "aggressor_check":{
+                "known_rows_pct":report.aggressor_known_pct,
+                "status":"OK" if report.aggressor_known_pct>0 else "UNAVAILABLE",
+                "enriched_existing_rows":int(result.get("enriched") or 0),
+            },
             "time_index":{"built_now":built,**index_summary(index)},
             "selection_locator":located,
             "candle_line_map":line_map,
