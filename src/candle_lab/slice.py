@@ -11,6 +11,7 @@ from .importers import (
     _detect_dialect,
     _detect_encoding,
     _decimal_number,
+    _profit_decimal_number,
     _looks_like_profit_headerless_trade,
     _norm_header,
     _parse_datetime,
@@ -51,7 +52,7 @@ class TradeCsvLayout:
     def canonical_row(self, row: list[str], *, fallback_symbol: str) -> list[str]:
         ts = self.timestamp(row)
         symbol = self.symbol(row) or fallback_symbol
-        price = _decimal_number(self.value(row, self.price_idx))
+        price = _profit_decimal_number(self.value(row, self.price_idx))
         quantity = _decimal_number(self.value(row, self.quantity_idx))
         return [
             symbol,
@@ -191,7 +192,7 @@ def _looks_like_profit_headerless_trade_with_id(row: list[str]) -> bool:
     try:
         datetime.strptime(row[1].strip(), "%d/%m/%y")
         datetime.strptime(row[2].strip(), "%H:%M:%S")
-        _decimal_number(row[5])
+        _profit_decimal_number(row[5])
         qty = _decimal_number(row[6])
         if qty != qty.to_integral_value() or qty <= 0:
             return False
