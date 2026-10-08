@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.19.1 — 2026-10-08
+- consolida a etapa de validação histórica e planejamento de indicadores;
+- adiciona download JSON do relatório de validação histórica pela interface;
+- o JSON exportado preserva baseline, lift, IC Wilson, N, horizontes, avisos e resultados por hipótese;
+- completa os prompts TradingView com CL-11, CL-12 e prompt de integração com relatório histórico;
+- completa os prompts Profit/NTSL com CL-12 e prompt de integração com relatório histórico;
+- alinha versões de `pyproject.toml`, pacote, servidor web e cache estático em 0.19.1;
+- mantém a regra de não transformar score heurístico ou lift in-sample em probabilidade/causalidade.
+
+
 ## 0.19.0 — 2026-10-08
 - adiciona composição da agressão por candle em volume e número de negócios;
 - calcula participação de compra agressora, venda agressora, RLP e volume sem classificação sobre o volume total;
