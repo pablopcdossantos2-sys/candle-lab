@@ -51,3 +51,17 @@ A indexação física confirma a relação esperada para a exportação descende
 - o fechamento cronológico está na linha física de menor número;
 - o número real de trades é a quantidade de linhas do intervalo, sem estimativas;
 - os offsets de byte permitem acesso direto ao trecho depois da primeira indexação.
+
+## Agregações de timeframe verificadas no mesmo índice
+
+O índice M1 também foi agregado sem nova varredura do CSV.
+
+| Intervalo | Linhas físicas | Linha da abertura | Linha do fechamento | Trades |
+| --- | ---: | ---: | ---: | ---: |
+| M2 14:40–14:42 | 72.752–92.441 | 92.441 | 72.752 | 19.690 |
+| M5 14:40–14:45 | 56.117–92.441 | 92.441 | 56.117 | 36.325 |
+| M5 14:45–14:50 | 199–56.116 | 56.116 | 199 | 55.918 |
+
+Esses resultados são obtidos somando os buckets M1 pertencentes ao intervalo [start,end), sem estimar número de linhas.
+
+O recorte disponível não contém 15 minutos completos em torno de 14:40; por isso, a validação real de M15 deverá ser feita sobre o arquivo original do pregão. A agregação M15 já é coberta pela mesma regra e pela suíte de testes do índice.
