@@ -421,6 +421,27 @@ class SelectiveSliceTests(unittest.TestCase):
             self.assertFalse(built_now)
             self.assertEqual(cached.source_sha256,index.source_sha256)
 
+    def test_time_index_aggregates_m15_from_m1_buckets(self):
+        tz = ZoneInfo("America/Sao_Paulo")
+        lines=[]
+        for minute in range(15,-1,-1):
+            ts=datetime(2026,10,7,9,minute,tzinfo=tz)
+            lines.append(
+                f"WINM15,07/10/26,{ts.strftime('%H:%M:%S')},3 - Comprador,"
+                f"{1000+minute*5},1,85 - Vendedor,Comprador\n"
+            )
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp)
+            source=root/"WINM15.csv"
+            source.write_text("".join(lines),encoding="cp1252")
+            index=build_time_index(source,index_dir=root/"indexes",symbol="WINM15")
+            start=datetime(2026,10,7,9,0,tzinfo=tz)
+            mapped=locate_candles(index,candle_starts=[start],interval_seconds=900)
+            self.assertEqual(mapped[0]["status"],"FOUND")
+            self.assertEqual(mapped[0]["trades"],15)
+            self.assertEqual((mapped[0]["source_row_min"],mapped[0]["source_row_max"]),(2,16))
+            self.assertEqual((mapped[0]["chronological_open_row"],mapped[0]["chronological_close_row"]),(16,2))
+
     def test_slice_aware_reconciliation_skips_unselected_gaps(self):
         tz = ZoneInfo("America/Sao_Paulo")
         trades = [
