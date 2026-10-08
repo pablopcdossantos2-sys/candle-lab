@@ -429,3 +429,16 @@ O gráfico diário pode existir sem dados Tick. A biblioteca só recebe microest
 Nas exportações brasileiras do Profit, um valor como `205.935` para o WIN significa **205935 pontos**: o ponto é separador de milhar, não separador decimal.
 
 A partir da v0.14.2, o perfil Profit interpreta esse formato corretamente antes de validar o tick. A regra não é aplicada indiscriminadamente a CSVs genéricos.
+
+### Erro `Parameter argument/count mismatch` ao calcular a qualidade
+
+Esse erro foi corrigido na v0.14.4. Ele ocorria depois da importação do recorte, quando o Candle Lab tentava persistir a avaliação de qualidade do pregão.
+
+Se você encontrou esse erro em uma versão anterior:
+
+1. atualize o Candle Lab para v0.14.4 ou posterior;
+2. feche e abra novamente com `iniciar.bat`;
+3. não apague `data\candle_lab.duckdb`, `data\indexes` nem `data\slices`;
+4. abra novamente o ativo/pregão na Biblioteca.
+
+O Candle Lab recalculará a qualidade usando os negócios já armazenados.
