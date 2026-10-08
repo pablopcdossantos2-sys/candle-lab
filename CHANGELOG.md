@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.18.1 — 2026-10-08
+- corrige interpretação enganosa quando o CSV possui negócios, mas nenhum lado agressor BUY/SELL reconhecido;
+- cobertura de agressor 0% passa a significar explicitamente **dado de agressão indisponível**, e não “agressão igual a zero”;
+- não cria mais `NIVEL_MAIS_AGREDIDO` quando todos os níveis têm agressão direcionada igual a zero;
+- fases sem BUY/SELL passam a usar `SEM_DADOS_AGRESSOR`, em vez de serem descritas como fluxo equilibrado;
+- qualidade da evidência passa a `INDISPONIVEL` quando a cobertura de agressor é 0%;
+- amplia reconhecimento de cabeçalhos do Profit para `Agressão`, `Tipo de Agressão` e `Lado da Agressão`;
+- o fluxo seletivo preserva esses aliases ao construir o recorte canônico;
+- importação sem cabeçalho passa a alertar e mostrar amostra dos valores brutos do campo agressor quando nenhum BUY/SELL é reconhecido;
+- adiciona testes de regressão para ausência de agressor e cabeçalho `Agressão`.
+
+
 ## 0.18.0 — 2026-10-08
 - adiciona motor de validação histórica das hipóteses do relatório interpretativo;
 - mede repetibilidade e desfechos externos em horizontes configuráveis;
