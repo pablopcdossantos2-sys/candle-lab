@@ -28,7 +28,7 @@ STATIC_DIR=PACKAGE_DIR/"static"
 PROJECT_ROOT=Path(__file__).resolve().parents[3]
 DEFAULT_DB=Path(os.environ.get("CANDLE_LAB_DB",PROJECT_ROOT/"data"/"candle_lab.duckdb"))
 DEFAULT_PARQUET=Path(os.environ.get("CANDLE_LAB_PARQUET",PROJECT_ROOT/"data"/"parquet"/"trades.parquet"))
-VERSION="0.13.0"
+VERSION="0.14.0"
 
 
 class TimeIndexRequest(BaseModel):
@@ -47,7 +47,7 @@ class SliceImportRequest(BaseModel):
     end: datetime
     tick_size: float = 5.0
     interval_seconds: int = 60
-    candle_starts: list[datetime] = []
+    candle_starts: list[datetime] = Field(default_factory=list)
 
 
 def create_app(db_path:str|Path=DEFAULT_DB)->FastAPI:
