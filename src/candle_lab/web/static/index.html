@@ -257,6 +257,47 @@
   <div class="two-col"><div><h3>Semelhança visual</h3><div id="visualMatches"></div></div><div><h3>Semelhança pelo DNA</h3><div id="dnaMatches"></div></div></div>
 </section>
 
+<section id="validationCard" class="card hidden">
+  <div class="section-head">
+    <div>
+      <h2>Validação histórica das hipóteses</h2>
+      <p>Mede repetibilidade e comportamento posterior fora do candle que originou a hipótese.</p>
+    </div>
+    <span class="badge real">EX-POST CONTROLADO</span>
+  </div>
+  <div class="controls">
+    <label>Horizontes
+      <input id="validationHorizons" type="text" value="1,3,5" placeholder="1,3,5">
+    </label>
+    <button id="historicalValidationBtn" class="primary">Validar hipóteses na biblioteca</button>
+  </div>
+  <div id="validationSummary" class="kpis"></div>
+  <div id="validationNotice" class="notice">
+    A validação mede resultados posteriores e compara com a linha de base da biblioteca. Ela não transforma uma narrativa retrospectiva em causalidade comprovada.
+  </div>
+  <div class="table-wrap">
+    <table class="aggression-table">
+      <thead>
+        <tr>
+          <th>Hipótese</th><th>Horizonte</th><th>N</th><th>Direção esperada</th>
+          <th>Acerto</th><th>Baseline</th><th>Lift</th><th>IC 95%</th><th>Status</th>
+        </tr>
+      </thead>
+      <tbody id="historicalValidationBody"></tbody>
+    </table>
+  </div>
+  <div class="two-col">
+    <div>
+      <h3>Hipóteses sem alvo direcional pré-registrado</h3>
+      <div id="descriptiveValidation"></div>
+    </div>
+    <div>
+      <h3>Advertências metodológicas</h3>
+      <div id="validationWarnings" class="interpretation-list"></div>
+    </div>
+  </div>
+</section>
+
 <section id="trajectoryCard" class="card hidden">
   <div class="section-head"><div><h2>Famílias de trajetória</h2><p>Taxonomia explicável + clustering empírico.</p></div><span class="badge">v0.8+</span></div>
   <div class="controls"><label>Clusters<select id="clusterSelect"><option value="0">Automático</option><option>3</option><option>4</option><option>5</option><option>6</option><option>8</option></select></label><label>Pontos<select id="pointsSelect"><option>17</option><option selected>25</option><option>33</option><option>49</option></select></label><button id="trajectoryBtn" class="primary">Descobrir famílias</button></div>
