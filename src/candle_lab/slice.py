@@ -10,6 +10,7 @@ from typing import Callable
 from .importers import (
     _detect_dialect,
     _detect_encoding,
+    _decimal_number,
     _looks_like_profit_headerless_trade,
     _norm_header,
     _parse_datetime,
@@ -50,13 +51,15 @@ class TradeCsvLayout:
     def canonical_row(self, row: list[str], *, fallback_symbol: str) -> list[str]:
         ts = self.timestamp(row)
         symbol = self.symbol(row) or fallback_symbol
+        price = _decimal_number(self.value(row, self.price_idx))
+        quantity = _decimal_number(self.value(row, self.quantity_idx))
         return [
             symbol,
             ts.strftime("%d/%m/%y"),
             ts.strftime("%H:%M:%S"),
             self.value(row, self.buyer_idx),
-            self.value(row, self.price_idx),
-            self.value(row, self.quantity_idx),
+            format(price, "f"),
+            format(quantity, "f"),
             self.value(row, self.seller_idx),
             self.value(row, self.aggressor_idx),
         ]
@@ -347,7 +350,7 @@ def slice_profit_trades(
     with source.open("rb") as src, output.open("w", encoding=encoding, newline="") as dst:
         if byte_begin:
             src.seek(byte_begin)
-        writer = csv.writer(dst, dialect=dialect)
+        writer = csv.writer(dst, dialect=csv.excel)
         while src.tell() < byte_limit:
             raw = src.readline()
             if not raw:
