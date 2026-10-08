@@ -168,8 +168,10 @@ def _looks_like_profit_headerless_trade(row: list[str]) -> bool:
     try:
         datetime.strptime(row[1].strip(), "%d/%m/%y")
         datetime.strptime(row[2].strip(), "%H:%M:%S")
-        Decimal(row[4].strip())
-        int(row[5].strip())
+        _decimal_number(row[4])
+        qty = _decimal_number(row[5])
+        if qty != qty.to_integral_value() or qty <= 0:
+            return False
     except (ValueError, InvalidOperation):
         return False
     return row[7].strip().lower() in {"comprador", "vendedor", "rlp", "indefinido", "undefined", ""}
@@ -243,7 +245,10 @@ def _import_profit_headerless(
                 price_ticks = int(ratio.quantize(Decimal("1"), rounding=ROUND_HALF_UP))
                 if abs(ratio - Decimal(price_ticks)) > Decimal("0.000001"):
                     raise ValueError(f"preço {price} não é múltiplo do tick {tick}")
-                qty = int(row[5].strip())
+                qty_decimal = _decimal_number(row[5])
+                if qty_decimal != qty_decimal.to_integral_value():
+                    raise ValueError(f"quantidade deve ser inteira: {row[5]}")
+                qty = int(qty_decimal)
                 if qty <= 0:
                     raise ValueError("quantidade deve ser positiva")
             except ValueError as exc:
