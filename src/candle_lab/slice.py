@@ -380,6 +380,21 @@ def slice_profit_trades(
     indexed_seek = seek_byte_start is not None
     byte_begin = int(seek_byte_start or 0)
     byte_limit = int(seek_byte_end) if seek_byte_end is not None else source_size
+    byte_total = max(1, byte_limit - byte_begin)
+    last_progress_byte = byte_begin
+    progress_step_bytes = 2 * 1024 * 1024
+
+    if progress:
+        progress({
+            "phase": "extract",
+            "scanned_rows": 0,
+            "matched_rows": 0,
+            "bytes_processed": 0,
+            "bytes_total": byte_total,
+            "percent": 0.0,
+            "source_order": source_order,
+            "indexed_seek": indexed_seek,
+        })
 
     with source.open("rb") as src, output.open("w", encoding=encoding, newline="") as dst:
         if byte_begin:
@@ -434,15 +449,39 @@ def slice_profit_trades(
                     first_source_row = physical_line
                 last_source_row = physical_line
 
-            if progress and scanned % 100_000 == 0:
+            current_byte = min(src.tell(), byte_limit)
+            if progress and (
+                current_byte - last_progress_byte >= progress_step_bytes
+                or scanned % 100_000 == 0
+            ):
+                processed = max(0, current_byte - byte_begin)
                 progress({
+                    "phase": "extract",
                     "scanned_rows": scanned,
                     "source_row": physical_line,
                     "matched_rows": matched,
                     "source_order": source_order,
                     "source_bytes": source_size,
                     "indexed_seek": indexed_seek,
+                    "bytes_processed": processed,
+                    "bytes_total": byte_total,
+                    "percent": round(processed / byte_total * 100, 2),
                 })
+                last_progress_byte = current_byte
+
+    if progress:
+        progress({
+            "phase": "extract",
+            "scanned_rows": scanned,
+            "source_row": physical_line,
+            "matched_rows": matched,
+            "source_order": source_order,
+            "source_bytes": source_size,
+            "indexed_seek": indexed_seek,
+            "bytes_processed": byte_total,
+            "bytes_total": byte_total,
+            "percent": 100.0,
+        })
 
     if matched == 0:
         output.unlink(missing_ok=True)
