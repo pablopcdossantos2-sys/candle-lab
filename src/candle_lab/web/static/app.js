@@ -364,12 +364,58 @@ async function selectCandle(i,row){
   ['labCard','researchCard','trajectoryCard','transitionCard'].forEach(id=>$(id).classList.remove('hidden'));renderDetail();
 }
 
+function aggressionIntensityLabel(x){
+  return ({SEM_AGRESSAO_DIRECIONADA:'Sem direção',BAIXA:'Baixa',MODERADA:'Moderada',ALTA:'Alta',EXTREMA:'Extrema'})[x]||x;
+}
+function aggressionResponseLabel(x){
+  return ({IMPULSO_COMPATIVEL:'Impulso compatível',POSSIVEL_ABSORCAO:'Possível absorção',PRESSAO_SEM_CONFIRMACAO:'Pressão sem confirmação',DISPUTA_OU_INDEFINIDA:'Disputa / indefinida'})[x]||x;
+}
+function topAgentText(rows){
+  if(!rows||!rows.length)return '—';
+  const x=rows[0];
+  return esc(x.agent)+' · '+n(x.quantity,0)+' ('+pct(x.share)+')';
+}
+function agentRankingHtml(rows){
+  return (rows||[]).map((x,i)=>'<div class="agent-row"><span><b>#'+(i+1)+'</b> '+esc(x.agent)+'<br><small>'+n(x.trades,0)+' negócio(s)</small></span><strong>'+n(x.quantity,0)+' · '+pct(x.share)+'</strong></div>').join('')||'<p class="muted">Sem agente identificável neste lado.</p>';
+}
+function renderAggression(d){
+  const a=d.aggression;if(!a)return;
+  const sm=a.summary;
+  const items=[
+    ['Compra agressora',n(sm.buy_aggression,0)],
+    ['Venda agressora',n(sm.sell_aggression,0)],
+    ['Delta',n(sm.delta,0)],
+    ['Cobertura agressor',pct(sm.aggressor_coverage)],
+    ['Direção',sm.direction],
+    ['RLP',n(sm.rlp_volume,0)]
+  ];
+  $('aggressionKpis').innerHTML=items.map(v=>'<div class="kpi"><span>'+v[0]+'</span><strong>'+v[1]+'</strong></div>').join('');
+  $('topBuyAggressors').innerHTML=agentRankingHtml(a.top_buy_aggressors);
+  $('topSellAggressors').innerHTML=agentRankingHtml(a.top_sell_aggressors);
+  $('aggressionBody').innerHTML=(a.levels||[]).map(x=>{
+    const dom=x.dominance==null?'—':pct(x.dominance);
+    return '<tr class="aggr-'+String(x.intensity||'').toLowerCase()+'">'+
+      '<td><strong>'+n(x.price)+'</strong><br><small>'+n(x.volume,0)+' total</small></td>'+
+      '<td>'+n(x.buy_aggression,0)+'</td>'+
+      '<td>'+n(x.sell_aggression,0)+'</td>'+
+      '<td class="'+(x.delta>0?'delta-buy':x.delta<0?'delta-sell':'')+'">'+n(x.delta,0)+'</td>'+
+      '<td><span class="intensity intensity-'+String(x.intensity||'').toLowerCase()+'">'+aggressionIntensityLabel(x.intensity)+'</span><br><small>'+pct(x.share_of_candle_directed_aggression)+' do candle</small></td>'+
+      '<td>'+dom+'</td>'+
+      '<td>'+topAgentText(x.top_buy_aggressors)+'</td>'+
+      '<td>'+topAgentText(x.top_sell_aggressors)+'</td>'+
+      '<td>'+aggressionResponseLabel(x.response)+'<br><small>'+n(x.visits,0)+' visita(s) · favorável '+n(x.favorable_excursion_ticks_after_level,0)+' tick(s)</small></td>'+
+    '</tr>';
+  }).join('');
+  $('aggressionMethod').textContent=a.method+' '+a.limitations;
+}
+
 function renderDetail(){
   const d=state.detail;if(!d)return;const dna=d.dna;
   const items=[['Range',dna.range_ticks+' ticks'],['Eficiência',pct(dna.directional_efficiency)],['Reversões',dna.reversals],['Revisitas',dna.total_revisits],['VWAP',n(dna.vwap)],['Trades/s',n(dna.trades_per_second,2)]];
   $('dnaKpis').innerHTML=items.map(v=>'<div class="kpi"><span>'+v[0]+'</span><strong>'+v[1]+'</strong></div>').join('');
   draw($('pathCanvas'),d.timeline,state.replay);draw($('counterCanvas'),d.counterfactual.prices);
   $('volumeLevels').innerHTML=d.volume_by_price.slice(0,40).map(x=>'<div class="level"><span>'+n(x.price)+'</span><strong>'+n(x.volume,0)+' · Δ '+n(x.delta,0)+'</strong></div>').join('');
+  renderAggression(d);
   const shown=d.timeline.slice(0,state.replay);
   $('tradeBody').innerHTML=shown.slice(-250).map(t=>'<tr><td>'+(t.index+1)+'</td><td>'+clock(t.ts)+'</td><td>'+n(t.price)+'</td><td>'+t.quantity+'</td><td>'+t.aggressor+'</td><td>'+esc(t.buyer_id||'—')+'</td><td>'+esc(t.seller_id||'—')+'</td></tr>').join('');
   $('replayState').textContent=state.replay+'/'+d.timeline.length+' negócios';
