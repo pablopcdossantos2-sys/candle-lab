@@ -278,6 +278,26 @@ def reconcile_candles(
     }
 
 
+def reconcile_available_candles(
+    trades: Iterable[Trade], references: Iterable[ReferenceCandle], *, interval_seconds: int, tick_size: float
+) -> dict[str, object]:
+    """Reconcilia apenas candles que possuem negócios no conjunto seletivo.
+
+    É o modo adequado quando vários recortes intencionais e não contíguos do mesmo
+    pregão foram importados. Ausência fora dos recortes não é classificada como NO_DATA.
+    """
+    trades=list(trades)
+    refs=list(references)
+    reconstructed=build_candles(trades,interval_seconds)
+    available={(c.symbol,c.start) for c in reconstructed}
+    selected_refs=[ref for ref in refs if (ref.symbol,ref.start) in available]
+    report=reconcile_candles(trades,selected_refs,interval_seconds=interval_seconds,tick_size=tick_size)
+    report["coverage_mode"]="AVAILABLE_CANDLES_ONLY"
+    report["reference_candles_skipped_outside_slices"]=len(refs)-len(selected_refs)
+    report["selected_candle_starts"]=[ref.start.isoformat() for ref in selected_refs]
+    return report
+
+
 def reconcile_observed_window(
     trades: Iterable[Trade], references: Iterable[ReferenceCandle], *, interval_seconds: int, tick_size: float
 ) -> dict[str, object]:
