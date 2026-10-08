@@ -292,11 +292,11 @@ class BulkImportTests(unittest.TestCase):
 
 class ProfitNumberTests(unittest.TestCase):
     def test_profit_dot_grouped_price_uses_brazilian_thousands(self):
-        self.assertEqual(_profit_decimal_number("205.935"), 205935)
-        self.assertEqual(_profit_decimal_number("5.321,5"), 5321.5)
-        self.assertEqual(_profit_decimal_number("205935"), 205935)
+        self.assertEqual(str(_profit_decimal_number("205.935")), "205935")
+        self.assertEqual(str(_profit_decimal_number("5.321,5")), "5321.5")
+        self.assertEqual(str(_profit_decimal_number("205935")), "205935")
         # A regra genérica continua diferente: ponto isolado permanece decimal.
-        self.assertEqual(_decimal_number("205.935"), 205.935)
+        self.assertEqual(str(_decimal_number("205.935")), "205.935")
 
     def test_profit_dot_grouped_price_is_valid_for_win_tick(self):
         content = (
