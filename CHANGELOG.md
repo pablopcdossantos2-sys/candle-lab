@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.14.3 — 2026-10-07
+- adiciona barra de progresso à ação `Recortar e importar intervalo localizado`;
+- extração seletiva reporta progresso pelos bytes efetivamente lidos da faixa localizada;
+- interface mostra porcentagem geral e etapa atual da tarefa;
+- progresso distingue preparação, localização, extração, normalização, gravação, catálogo e conclusão;
+- recorte/importação passa a rodar como tarefa local consultável pela interface;
+- endpoint de compatibilidade síncrono permanece disponível;
+- testes automatizados verificam progresso inicial/final e os controles da interface.
+
+
 ## 0.14.2 — 2026-10-07
 - corrige preços do Profit com ponto como separador de milhar, por exemplo `205.935` → `205935`;
 - mantém a interpretação decimal genérica separada da regra específica do Profit;
