@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "candle-lab-b3"
-version = "0.18.0"
+version = "0.19.1"
 description = "Laboratório de reconstrução e simulação intrabar para futuros da B3"
 requires-python = ">=3.11"
 dependencies = [
