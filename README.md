@@ -2,7 +2,7 @@
 
 **Laboratório local para investigar como candles de futuros da B3 são formados negócio a negócio.**
 
-Versão atual: **0.13.0**
+Versão atual: **0.14.0**
 
 O Candle Lab B3 nasceu de uma pergunta simples: **dois candles visualmente parecidos necessariamente foram formados da mesma maneira?**
 
@@ -258,7 +258,30 @@ O recorte usa os offsets do índice para executar `seek` diretamente na região 
 
 Veja `docs/INDICE-TEMPORAL-LINHAS.md` e `docs/TUTORIAL-LOCALIZAR-LINHAS.md`.
 
-### 15. Caminhos contrafactuais
+### 15. Seleção precisa do intervalo — v0.14
+
+A v0.14 elimina a dependência de acertar exatamente o minuto com o mouse no gráfico diário.
+
+A seleção pode ser feita de três maneiras:
+
+- clicar e arrastar sobre os candles;
+- arrastar os marcadores verticais **INÍCIO** e **FIM** depois que a seleção existe;
+- digitar diretamente os horários, por exemplo `14:40` e `14:50`.
+
+O gráfico também ganhou:
+
+- zoom horizontal em até 12 níveis;
+- botões para mover a janela visível para a esquerda/direita;
+- comando **Mostrar dia inteiro**;
+- comando **Zoom na seleção**;
+- `Ctrl + roda do mouse` para zoom;
+- mais marcações de horário no eixo X à medida que o zoom aumenta.
+
+A seleção continua vinculada aos candles reais do CSV OHLC, e o índice temporal v0.13 continua convertendo os limites selecionados em linhas e offsets de byte exatos do CSV Tick by Tick.
+
+Veja `docs/TUTORIAL-INSTALACAO-E-USO-WINDOWS.md`.
+
+### 16. Caminhos contrafactuais
 
 O programa também pode criar uma trajetória diferente que preserve o mesmo OHLC.
 
@@ -578,6 +601,7 @@ Para aprofundar o projeto:
 - `docs/ESTABILIDADE-TRANSICOES.md` — estabilidade e sequências v0.9;
 - `docs/VALIDACAO-V08.md` — validação funcional da camada de trajetórias;
 - `docs/VALIDACAO-EMPIRICA-V010.md` — primeira validação com dados reais do WINV26;
+- `docs/TUTORIAL-INSTALACAO-E-USO-WINDOWS.md` — instalação e uso completos para usuários de Windows;
 - `docs/TUTORIAL-FLUXO-SELETIVO.md` — fluxo recomendado: gráfico diário, seleção e recorte Tick;
 - `docs/INDICE-TEMPORAL-LINHAS.md` — regra exata candle → linhas → bytes;
 - `docs/TUTORIAL-LOCALIZAR-LINHAS.md` — tutorial para preparar o índice e localizar candles;
@@ -600,7 +624,8 @@ O projeto ainda está em desenvolvimento. Entre as limitações conhecidas:
 - a v0.11 mantém ingestão integral em chunks como ferramenta de auditoria;
 - a v0.12 passa a recomendar recortes seletivos e não exige armazenar um pregão Tick inteiro;
 - a extração seletiva e o índice temporal foram desenhados para o layout real sem cabeçalho do Profit já validado pelo projeto;
-- o índice v0.13 trabalha com buckets-base de 1 minuto e exige fronteiras alinhadas ao minuto para que o mapa de linhas seja exato.
+- o índice v0.13 trabalha com buckets-base de 1 minuto e exige fronteiras alinhadas ao minuto para que o mapa de linhas seja exato;
+- a v0.14 melhora a precisão da seleção na interface, mas não altera a granularidade física do índice M1.
 
 ---
 
