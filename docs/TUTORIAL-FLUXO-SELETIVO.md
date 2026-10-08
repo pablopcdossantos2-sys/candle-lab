@@ -1,4 +1,4 @@
-# Tutorial — fluxo seletivo do Candle Lab v0.13
+# Tutorial — fluxo seletivo do Candle Lab v0.14
 
 Este é o fluxo recomendado para analisar um pregão real sem armazenar um arquivo Tick by Tick gigantesco dentro do Candle Lab.
 
@@ -59,17 +59,26 @@ Na seção **2 — Visão geral do pregão**:
 
 O gráfico diário funciona mesmo que nenhum Tick by Tick tenha sido importado.
 
-## Passo 4 — selecionar os candles
+## Passo 4 — selecionar os candles com precisão
 
-Posicione o mouse no primeiro candle que deseja investigar.
+A interface oferece três métodos complementares:
 
-Mantenha o botão esquerdo pressionado e arraste até o último candle desejado.
+1. **Clique e arraste** para criar rapidamente uma seleção;
+2. **Marcadores INÍCIO/FIM**: depois que a seleção existe, arraste cada marcador até a fronteira desejada;
+3. **Campos de horário**: digite, por exemplo, `14:40` e `14:50` e clique em **Aplicar horários**.
 
-Ao soltar, o Candle Lab mostra:
+Também há controles de zoom:
 
-- hora inicial;
-- hora final;
-- quantidade de candles selecionados.
+- `−` e `+`;
+- controle deslizante;
+- `◀` e `▶` para mover a janela;
+- **Mostrar dia inteiro**;
+- **Zoom na seleção**;
+- `Ctrl + roda do mouse` sobre o gráfico.
+
+Quanto maior o zoom, menos candles ficam visíveis e mais marcações de horário aparecem no eixo horizontal.
+
+Ao confirmar uma seleção, o Candle Lab mostra hora inicial, hora final e quantidade de candles.
 
 Exemplo:
 
