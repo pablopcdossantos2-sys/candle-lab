@@ -2,7 +2,7 @@
 
 ## 0.14.0 — 2026-10-07
 - seleção de intervalo redesenhada no gráfico diário;
-- zoom horizontal em até 12 níveis;
+- zoom horizontal em até 30 níveis;
 - maior densidade de marcações temporais no eixo X conforme o zoom aumenta;
 - botões para panorâmica esquerda/direita e retorno ao dia inteiro;
 - comando `Zoom na seleção`;
