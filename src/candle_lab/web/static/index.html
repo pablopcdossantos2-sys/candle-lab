@@ -92,6 +92,13 @@
     <button id="locateBtn" disabled>Preparar índice e localizar</button>
   </div>
   <div class="notice">Regra usada: <code>início do candle ≤ timestamp &lt; fim do candle</code>. Não são usadas médias de negócios por minuto. O índice registra as linhas físicas e os bytes reais do arquivo.</div>
+  <div id="indexProgressWrap" class="index-progress hidden" aria-live="polite">
+    <div class="index-progress-head">
+      <strong id="indexProgressPct">0%</strong>
+      <span id="indexProgressText">Aguardando início da leitura…</span>
+    </div>
+    <div class="index-progress-track"><div id="indexProgressBar" class="index-progress-bar"></div></div>
+  </div>
   <pre id="indexResult" class="console compact">Selecione primeiro um intervalo no gráfico.</pre>
   <div id="lineMapWrap" class="table-wrap hidden">
     <table>
