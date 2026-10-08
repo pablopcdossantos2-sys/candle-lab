@@ -378,6 +378,96 @@ function topAgentText(rows){
 function agentRankingHtml(rows){
   return (rows||[]).map((x,i)=>'<div class="agent-row"><span><b>#'+(i+1)+'</b> '+esc(x.agent)+'<br><small>'+n(x.trades,0)+' negócio(s)</small></span><strong>'+n(x.quantity,0)+' · '+pct(x.share)+'</strong></div>').join('')||'<p class="muted">Sem agente identificável neste lado.</p>';
 }
+function hypothesisConfidenceLabel(x){
+  return ({FORTE:'Hipótese forte',MODERADA:'Hipótese moderada',FRACA:'Hipótese fraca'})[x]||x;
+}
+function interpretationAsText(report){
+  if(!report)return '';
+  const lines=[
+    'RELATÓRIO INTERPRETATIVO DO CANDLE',
+    report.label||'',
+    '',
+    'QUALIDADE DA EVIDÊNCIA',
+    (report.evidence_quality&&report.evidence_quality.label)||'—',
+    '',
+    'SÍNTESE DO FECHAMENTO',
+    report.closing_synthesis||'',
+    '',
+    'COMO A AGRESSÃO SE DESENVOLVEU'
+  ];
+  (report.process_description||[]).forEach(x=>lines.push('- '+x));
+  lines.push('','EVIDÊNCIAS OBSERVADAS');
+  (report.observed_facts||[]).forEach(x=>lines.push('- '+x.text));
+  lines.push('','HIPÓTESES EXPLICATIVAS');
+  (report.hypotheses||[]).forEach((h,i)=>{
+    lines.push((i+1)+'. '+h.title+' ['+h.confidence+' · '+Math.round((h.score||0)*100)+'%]');
+    lines.push('   '+h.explanation);
+    (h.supporting_evidence||[]).forEach(x=>lines.push('   + '+x));
+    (h.counter_evidence||[]).forEach(x=>lines.push('   - '+x));
+  });
+  lines.push('','LIMITAÇÕES');
+  (report.limitations||[]).forEach(x=>lines.push('- '+x));
+  return lines.join('\n');
+}
+async function copyInterpretation(){
+  const report=state.detail&&state.detail.interpretation;if(!report)return;
+  const text=interpretationAsText(report);
+  try{
+    if(navigator.clipboard&&navigator.clipboard.writeText){
+      await navigator.clipboard.writeText(text);
+    }else{
+      const area=document.createElement('textarea');area.value=text;document.body.appendChild(area);
+      area.select();document.execCommand('copy');area.remove();
+    }
+    const btn=$('copyInterpretationBtn'),old=btn.textContent;
+    btn.textContent='Relatório copiado';
+    setTimeout(()=>btn.textContent=old,1400);
+  }catch(e){
+    alert('Não foi possível copiar automaticamente. '+e.message);
+  }
+}
+function renderInterpretation(d){
+  const report=d.interpretation;if(!report)return;
+  const complete=state.replay>=d.timeline.length;
+  $('interpretationReplayNotice').classList.toggle('hidden',complete);
+  $('interpretationContent').classList.toggle('hidden',!complete);
+  if(!complete)return;
+
+  const q=report.evidence_quality||{};
+  const items=[
+    ['Qualidade da evidência',q.label||'—'],
+    ['Score de evidência',pct(q.score||0)],
+    ['Cobertura agressor',pct(q.aggressor_coverage||0)],
+    ['Identidade de agente',pct(q.agent_identity_coverage||0)],
+    ['Negócios',n(q.trades||0,0)]
+  ];
+  $('interpretationQuality').innerHTML=items.map(v=>'<div class="kpi"><span>'+esc(v[0])+'</span><strong>'+esc(v[1])+'</strong></div>').join('');
+  $('closingSynthesis').textContent=report.closing_synthesis||'';
+
+  $('processDescription').innerHTML=(report.process_description||[])
+    .map((x,i)=>'<div class="interpretation-item"><span class="item-index">'+(i+1)+'</span><p>'+esc(x)+'</p></div>').join('')
+    ||'<p class="muted">Sem descrição cronológica suficiente.</p>';
+
+  $('observedFacts').innerHTML=(report.observed_facts||[])
+    .map(x=>'<div class="interpretation-item fact"><span class="fact-code">'+esc(x.code||'FATO')+'</span><p>'+esc(x.text||'')+'</p></div>').join('')
+    ||'<p class="muted">Sem fatos suficientes.</p>';
+
+  $('hypothesisList').innerHTML=(report.hypotheses||[]).map((h,i)=>{
+    const support=(h.supporting_evidence||[]).map(x=>'<li>'+esc(x)+'</li>').join('');
+    const counter=(h.counter_evidence||[]).map(x=>'<li>'+esc(x)+'</li>').join('');
+    return '<article class="hypothesis-card confidence-'+String(h.confidence||'').toLowerCase()+'">'+
+      '<div class="hypothesis-head"><div><small>Hipótese '+(i+1)+'</small><h5>'+esc(h.title)+'</h5></div>'+
+      '<span class="confidence-badge">'+esc(hypothesisConfidenceLabel(h.confidence))+' · '+n((h.score||0)*100,0)+'%</span></div>'+
+      '<p>'+esc(h.explanation)+'</p>'+
+      (support?'<div class="hypothesis-evidence"><strong>Evidências a favor</strong><ul>'+support+'</ul></div>':'')+
+      (counter?'<div class="hypothesis-counter"><strong>Contrapontos / limitações</strong><ul>'+counter+'</ul></div>':'')+
+    '</article>';
+  }).join('')||'<p class="muted">O sistema não encontrou hipótese suficientemente consistente; a leitura permanece inconclusiva.</p>';
+
+  $('interpretationLimitations').innerHTML=(report.limitations||[])
+    .map(x=>'<div class="interpretation-item limitation"><p>'+esc(x)+'</p></div>').join('');
+}
+
 function renderAggression(d){
   const a=d.aggression;if(!a)return;
   const sm=a.summary;
@@ -485,6 +575,7 @@ function renderDetail(){
   $('dnaKpis').innerHTML=items.map(v=>'<div class="kpi"><span>'+v[0]+'</span><strong>'+v[1]+'</strong></div>').join('');
   draw($('pathCanvas'),d.timeline,state.replay);drawWaveTerminationMarkers($('pathCanvas'),d);draw($('counterCanvas'),d.counterfactual.prices);
   $('volumeLevels').innerHTML=d.volume_by_price.slice(0,40).map(x=>'<div class="level"><span>'+n(x.price)+'</span><strong>'+n(x.volume,0)+' · Δ '+n(x.delta,0)+'</strong></div>').join('');
+  renderInterpretation(d);
   renderAggression(d);
   renderAggressionWaves(d);
   const shown=d.timeline.slice(0,state.replay);
@@ -727,6 +818,7 @@ $('overviewSymbolSelect').onchange=loadOverviewSessions;$('overviewSessionSelect
 $('refreshBtn').onclick=refresh;$('symbolSelect').onchange=loadSessions;$('sessionSelect').onchange=loadCandles;$('intervalSelect').onchange=loadCandles;
 $('playBtn').onclick=play;$('stepBtn').onclick=()=>{state.replay=Math.min(state.replay+1,state.detail.timeline.length);renderDetail()};$('resetBtn').onclick=()=>{clearInterval(state.timer);state.replay=0;renderDetail()};
 $('researchBtn').onclick=research;$('trajectoryBtn').onclick=trajectory;$('transitionBtn').onclick=transitions;
+$('copyInterpretationBtn').onclick=copyInterpretation;
 
 $('importForm').onsubmit=async e=>{
   e.preventDefault();const fd=new FormData();fd.append('file',$('tradeFile').files[0]);fd.append('symbol',$('symbolInput').value);fd.append('tick_size',$('tickInput').value);fd.append('source',$('sourceInput').value);
