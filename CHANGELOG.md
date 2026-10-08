@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.12.0 — 2026-10-07
+- fluxo recomendado alterado para visão geral → seleção → microestrutura;
+- gráfico diário construído apenas com o CSV leve de 1/2 minutos;
+- seleção visual de candles por arraste do mouse;
+- extração streaming de um intervalo diretamente do CSV grande de Trades;
+- o arquivo Tick completo pode permanecer fora da biblioteca;
+- recortes pequenos são gravados em `data/slices`;
+- intervalo de extração usa semântica `[início, fim)`;
+- detecção e preservação da ordem descendente do Profit;
+- endpoint local para recortar e importar o trecho selecionado;
+- comando `candle-lab slice-trades`;
+- biblioteca de microestrutura separada da visão geral OHLC;
+- ingestão integral v0.11 mantida como modo avançado/opcional;
+- testes de recorte seletivo e de biblioteca composta apenas por OHLC.
+
+
 ## 0.11.0 — 2026-10-07
 - ingestão massiva de Trades em chunks configuráveis;
 - SHA-256 do arquivo antes da importação;
