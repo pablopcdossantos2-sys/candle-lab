@@ -149,7 +149,9 @@ class AggressionWaveTests(unittest.TestCase):
         for i in range(10):
             trades.append(self._trade(start,i,100+i//4,AggressorSide.BUY,10,"BUYER_A"))
         for i in range(10,20):
-            trades.append(self._trade(start,i,102-(i-10)//3,AggressorSide.SELL,12,"SELLER_B"))
+            # Tomada abrupta: cada negócio vendedor supera com folga o volume
+            # comprador remanescente na janela, evitando uma fase prévia de neutralização.
+            trades.append(self._trade(start,i,102-(i-10)//3,AggressorSide.SELL,100,"SELLER_B"))
         report=aggression_wave_analysis(
             trades,5.0,window_trades=5,activation_confirmations=2,release_confirmations=2,
             opposite_takeover=0.40,post_event_horizon_trades=5,
