@@ -226,6 +226,8 @@ def interpret_candle(
     aggression: dict[str, object],
     waves: dict[str, object],
     tick_size: float,
+    flow_efficiency: dict[str, object] | None = None,
+    paradox: dict[str, object] | None = None,
 ) -> dict[str, object]:
     """Gera uma interpretação auditável, separando observação de hipótese."""
     if not trades:
@@ -321,6 +323,35 @@ def interpret_candle(
                 "relation": summary.get("price_flow_relation"),
                 "study_priority": summary.get("study_priority"),
             },
+        })
+
+    if flow_efficiency is not None:
+        fe_summary = flow_efficiency.get("summary") or {}
+        fe_response = flow_efficiency.get("response") or {}
+        observed.append({
+            "code": "EFICIENCIA_FLUXO",
+            "text": (
+                f"A resposta líquida do preço foi de {_num(int(fe_response.get('price_change_ticks') or 0))} tick(s). "
+                f"A eficiência sobre toda a agressão direcionada foi "
+                f"{_num(float(fe_response.get('ticks_per_1000_directed') or 0.0), 2)} tick(s) por 1.000 contratos. "
+                f"Foram detectados {int(fe_summary.get('effort_without_result_count') or 0)} episódio(s) de esforço sem resultado "
+                f"e {int(fe_summary.get('efficiency_decay_count') or 0)} episódio(s) de perda de eficiência."
+            ),
+            "data": {
+                "response": fe_response,
+                "summary": fe_summary,
+            },
+        })
+
+    if paradox is not None and paradox.get("paradoxical"):
+        flags = list(paradox.get("flags") or [])
+        observed.append({
+            "code": "CANDLE_PARADOXAL",
+            "text": (
+                f"O candle foi marcado como paradoxal, com prioridade {str(paradox.get('priority')).lower().replace('_', ' ')} "
+                f"e {len(flags)} sinal(is) de conflito entre esforço agressor e resposta do preço."
+            ),
+            "data": paradox,
         })
 
     strongest = list(aggression.get("strongest_levels") or [])
@@ -438,6 +469,50 @@ def interpret_candle(
             ],
             ["A fonte de Trades não revela toda a liquidez passiva disponível."],
         ))
+
+    if flow_efficiency is not None:
+        fe_events = list(flow_efficiency.get("events") or [])
+        effort_events = [e for e in fe_events if e.get("code") == "ESFORCO_SEM_RESULTADO"]
+        decay_events = [e for e in fe_events if str(e.get("code", "")).startswith("PERDA_EFICIENCIA_")]
+        if effort_events:
+            strongest_effort = max(
+                effort_events,
+                key=lambda e: float(e.get("effort_vs_phase_median") or 0.0),
+            )
+            score = 0.48 + min(0.22, float(strongest_effort.get("effort_vs_phase_median") or 0.0) * 0.10) + 0.15 * coverage
+            hypotheses.append(_hypothesis(
+                "ESFORCO_AGRESSOR_SEM_RESULTADO",
+                "Esforço agressor elevado sem deslocamento proporcional",
+                score,
+                (
+                    "Uma fase do candle apresentou agressão relevante, mas o preço respondeu pouco, não respondeu "
+                    "ou caminhou contra o lado dominante. Isso é compatível com perda de eficiência do fluxo e merece "
+                    "investigação de absorção passiva ou resistência do lado oposto."
+                ),
+                [
+                    str(strongest_effort.get("description") or "Evento de esforço sem resultado detectado."),
+                    "A métrica compara deslocamento em ticks com o volume agressor executado.",
+                ],
+                ["Sem MBO/MBP não é possível provar absorção passiva."],
+            ))
+        if decay_events:
+            strongest_decay = min(
+                decay_events,
+                key=lambda e: float(e.get("efficiency_ratio") or 1.0),
+            )
+            score = 0.58 + min(0.20, (1.0 - max(0.0, float(strongest_decay.get("efficiency_ratio") or 1.0))) * 0.20)
+            hypotheses.append(_hypothesis(
+                "PERDA_EFICIENCIA_FLUXO",
+                "Agressão persistente com eficiência decrescente",
+                score,
+                (
+                    "O lado agressor continuou executando volume, mas obteve progressivamente menos deslocamento favorável. "
+                    "Esse padrão é compatível com exaustão do impulso e pode anteceder neutralização ou troca de controle."
+                ),
+                [
+                    str(strongest_decay.get("description") or "Perda de eficiência detectada."),
+                ],
+            ))
 
     # Hipótese 3: rejeição em extremos baseada em wick + níveis/ondas.
     upper = int(geom["upper_wick_ticks"])
@@ -599,6 +674,10 @@ def interpret_candle(
         "audit": {
             "aggression_model_version": aggression.get("model_version"),
             "aggression_wave_model_version": waves.get("model_version"),
+            "flow_efficiency_model_version": (
+                flow_efficiency.get("model_version") if flow_efficiency is not None else None
+            ),
+            "paradox_model_version": paradox.get("model_version") if paradox is not None else None,
             "dna": asdict(dna),
         },
     }
