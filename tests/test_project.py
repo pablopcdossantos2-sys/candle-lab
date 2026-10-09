@@ -1160,7 +1160,7 @@ class UiContractTests(unittest.TestCase):
             "aggressionKpis","topBuyAggressors","topSellAggressors","aggressionBody","aggressionMethod",
             "flowEfficiencyKpis","flowEfficiencyBody","flowEfficiencyEvents","flowEfficiencyMethod",
             "paradoxBadge","paradoxSummary","paradoxFlags","paradoxMethod",
-            "paradoxScanCard","paradoxScanBtn","paradoxScanSummary","paradoxScanNotice","paradoxScanBody",
+            "paradoxScanBtn","paradoxScanSummary","paradoxScanNotice","paradoxScanBody",
             "waveSummary","openWaveBox","waveBody","waveMethod",
             "interpretationReplayNotice","interpretationContent","interpretationQuality",
             "closingSynthesis","processDescription","observedFacts","hypothesisList",
@@ -1172,6 +1172,7 @@ class UiContractTests(unittest.TestCase):
             self.assertIn(f'id="{control_id}"', html)
             self.assertIn(f"$('{control_id}')", js)
         self.assertIn("Gráfico diário para seleção", html)
+        self.assertIn('id="paradoxScanCard"', html)
         self.assertIn("INÍCIO", js)
         self.assertIn("FIM", js)
         self.assertIn("Ctrl", html)
