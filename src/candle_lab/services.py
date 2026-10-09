@@ -243,3 +243,69 @@ def similar_candles_payload(
         "target": _candle_to_dict(target_candle, tick_size),
         "matches": candidates[: max(1, min(limit, 50))],
     }
+
+
+def paradoxical_candles_payload(
+    trades: list[Trade],
+    *,
+    interval_seconds: int,
+    tick_size: float,
+    limit: int = 50,
+) -> dict[str, object]:
+    """Varre candles e prioriza conflitos entre esforço agressor e resposta do preço."""
+    if not trades:
+        return {
+            "interval_seconds": interval_seconds,
+            "candles_scanned": 0,
+            "paradoxical_candles": 0,
+            "results": [],
+        }
+
+    grouped = group_trades_by_candle(trades, interval_seconds)
+    results: list[dict[str, object]] = []
+    scanned = 0
+    for _, bucket in sorted(grouped.items(), key=lambda item: item[0][1]):
+        candles = build_candles(bucket, interval_seconds)
+        if len(candles) != 1:
+            continue
+        scanned += 1
+        candle = candles[0]
+        aggression = aggression_analysis(bucket, tick_size)
+        efficiency = flow_efficiency_analysis(
+            bucket,
+            tick_size=tick_size,
+            aggression=aggression,
+        )
+        paradox = detect_paradoxical_candle(
+            candle=candle,
+            aggression=aggression,
+            flow_efficiency=efficiency,
+        )
+        if not paradox["paradoxical"]:
+            continue
+        results.append({
+            "candle": _candle_to_dict(candle, tick_size),
+            "priority": paradox["priority"],
+            "score": paradox["score"],
+            "flags": paradox["flags"],
+            "flow_summary": efficiency["summary"],
+            "aggression_summary": {
+                "buy_share_directed": aggression["summary"].get("buy_share_directed"),
+                "sell_share_directed": aggression["summary"].get("sell_share_directed"),
+                "aggressor_coverage": aggression["summary"].get("aggressor_coverage"),
+                "price_flow_relation": aggression["summary"].get("price_flow_relation"),
+            },
+        })
+
+    results.sort(key=lambda row: (-float(row["score"]), str(row["candle"]["start"])))
+    return {
+        "interval_seconds": interval_seconds,
+        "candles_scanned": scanned,
+        "paradoxical_candles": len(results),
+        "share_paradoxical": (len(results) / scanned if scanned else 0.0),
+        "results": results[:limit],
+        "method": (
+            "A varredura prioriza inconsistências esforço × resultado. "
+            "Os scores ordenam investigação e não são probabilidades de reversão."
+        ),
+    }
