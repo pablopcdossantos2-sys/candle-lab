@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.20.0 — 2026-10-08
+- adiciona camada `flow_efficiency` para separar iniciativa, esforço e resposta do preço;
+- calcula contratos agressores por segundo e ticks por 1.000 contratos;
+- compara eficiência entre INICIO, MEIO e FINAL do candle;
+- detecta `ESFORCO_SEM_RESULTADO`;
+- detecta `PERDA_EFICIENCIA_BUY` e `PERDA_EFICIENCIA_SELL`;
+- detecta agressão acelerando com eficiência em queda;
+- adiciona `Detector de Candles Paradoxais`;
+- identifica baixa com compra agressora dominante e alta com venda agressora dominante;
+- classifica prioridade de investigação como BAIXA, MODERADA, ALTA ou MUITO_ALTA;
+- integra eficiência e paradoxos ao Relatório Interpretativo;
+- adiciona painéis de Eficiência do Fluxo e Candles Paradoxais ao Laboratório;
+- adiciona testes para esforço sem resultado, perda de eficiência, divergência preço × fluxo e contrato da UI;
+- documenta metodologia em `docs/EFICIENCIA-FLUXO-E-CANDLES-PARADOXAIS.md`;
+- mantém scores como heurísticas de priorização, não probabilidades estatísticas.
+
+
 ## 0.19.1 — 2026-10-08
 - consolida a etapa de validação histórica e planejamento de indicadores;
 - adiciona download JSON do relatório de validação histórica pela interface;
