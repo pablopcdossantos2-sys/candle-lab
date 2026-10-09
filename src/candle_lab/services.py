@@ -6,6 +6,8 @@ from math import log
 
 from .aggression import aggression_analysis
 from .aggression_waves import aggression_wave_analysis
+from .flow_efficiency import flow_efficiency_analysis
+from .paradox import detect_paradoxical_candle
 from .interpretation import interpret_candle
 from .candles import build_candles, group_trades_by_candle, trade_sort_key
 from .counterfactual import generate_ohlc_path
@@ -105,6 +107,16 @@ def candle_detail_payload(trades: list[Trade], interval_seconds: int, tick_size:
 
     aggression = aggression_analysis(ordered, tick_size)
     aggression_waves = aggression_wave_analysis(ordered, tick_size)
+    flow_efficiency = flow_efficiency_analysis(
+        ordered,
+        tick_size=tick_size,
+        aggression=aggression,
+    )
+    paradox = detect_paradoxical_candle(
+        candle=candle,
+        aggression=aggression,
+        flow_efficiency=flow_efficiency,
+    )
     interpretation = interpret_candle(
         ordered,
         candle=candle,
@@ -139,6 +151,8 @@ def candle_detail_payload(trades: list[Trade], interval_seconds: int, tick_size:
         ],
         "aggression": aggression,
         "aggression_waves": aggression_waves,
+        "flow_efficiency": flow_efficiency,
+        "paradox": paradox,
         "interpretation": interpretation,
         "counterfactual": {
             "label": "SIMULAÇÃO CONTRAFACTUAL — NÃO É REPLAY HISTÓRICO",
