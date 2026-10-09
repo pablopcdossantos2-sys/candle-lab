@@ -19,7 +19,7 @@ from ..importers import import_csv_with_report, import_generic_csv
 from ..reconciliation import ReferenceCandle, import_reference_candles, reconcile_candles, reconcile_observed_window, reconcile_available_candles
 from ..research import build_research_index, intrabar_comparison_payload, research_matches
 from ..quality import assess_library_quality
-from ..services import candle_detail_payload, candle_payload, similar_candles_payload
+from ..services import candle_detail_payload, candle_payload, similar_candles_payload, paradoxical_candles_payload
 from ..trajectory import analyze_trajectory_families
 from ..transitions import analyze_stability_and_transitions
 from ..storage import MarketStore
@@ -538,6 +538,24 @@ def create_app(db_path:str|Path=DEFAULT_DB)->FastAPI:
         trades=store.load_trades(symbol,start=aligned,end=aligned+timedelta(seconds=interval_seconds))
         if not trades:raise HTTPException(status_code=404,detail="Nenhum negócio no candle selecionado")
         return candle_detail_payload(trades,interval_seconds,store.tick_size(symbol),seed=seed)
+
+    @app.get("/api/research/paradox-candles")
+    def paradox_candles(
+        symbol:str,
+        session_date:date,
+        interval_seconds:int=Query(60,ge=1,le=3600),
+        limit:int=Query(50,ge=1,le=200),
+    ):
+        symbol=symbol.strip().upper()
+        trades=store.load_trades(symbol,session_date=session_date)
+        if not trades:
+            raise HTTPException(status_code=404,detail="Nenhum negócio no pregão selecionado")
+        return paradoxical_candles_payload(
+            trades,
+            interval_seconds=interval_seconds,
+            tick_size=store.tick_size(symbol),
+            limit=limit,
+        )
 
     @app.get("/api/similar-candles")
     def similar_candles(symbol:str,session_date:date,start:datetime,interval_seconds:int=Query(60,ge=1,le=3600),limit:int=Query(8,ge=1,le=50)):
