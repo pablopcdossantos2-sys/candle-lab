@@ -221,6 +221,43 @@
     <div id="aggressionMethod" class="notice"></div>
   </div>
 
+  <div class="flow-efficiency-panel">
+    <div class="section-head">
+      <div>
+        <h3>Eficiência do fluxo — esforço × resultado</h3>
+        <p>Separa iniciativa, esforço agressor e resposta do preço para detectar perda de eficiência e candles paradoxais.</p>
+      </div>
+      <span class="badge real">ANÁLISE DE FLUXO</span>
+    </div>
+    <div id="flowEfficiencyKpis" class="kpis"></div>
+    <div class="table-wrap aggression-table-wrap">
+      <table class="aggression-table">
+        <thead>
+          <tr>
+            <th>Fase</th><th>Lado</th><th>BUY</th><th>SELL</th><th>Velocidade</th>
+            <th>Preço</th><th>Eficiência dominante</th><th>Leitura</th>
+          </tr>
+        </thead>
+        <tbody id="flowEfficiencyBody"></tbody>
+      </table>
+    </div>
+    <div id="flowEfficiencyEvents" class="hypothesis-list"></div>
+    <div id="flowEfficiencyMethod" class="notice"></div>
+  </div>
+
+  <div class="paradox-panel">
+    <div class="section-head">
+      <div>
+        <h3>Detector de candles paradoxais</h3>
+        <p>Prioriza candles em que esforço agressor e resultado do preço entram em conflito.</p>
+      </div>
+      <span id="paradoxBadge" class="badge simulation">NORMAL</span>
+    </div>
+    <div id="paradoxSummary" class="kpis"></div>
+    <div id="paradoxFlags" class="hypothesis-list"></div>
+    <div id="paradoxMethod" class="notice"></div>
+  </div>
+
   <div class="aggression-wave-panel">
     <div class="section-head">
       <div>
