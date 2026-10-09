@@ -553,6 +553,10 @@ function fmtSigned(x,decimals=2){
 }
 function renderFlowEfficiency(d){
   const f=d.flow_efficiency;if(!f)return;
+  const panel=document.querySelector('.flow-efficiency-panel');
+  const complete=state.replay>=d.timeline.length;
+  if(panel)panel.classList.toggle('hidden',!complete);
+  if(!complete)return;
   const i=f.initiative||{},e=f.effort||{},r=f.response||{},sm=f.summary||{};
   const items=[
     ['Iniciativa',flowSideLabel(i.side)],
@@ -601,6 +605,10 @@ function paradoxSeverityLabel(x){
 }
 function renderParadox(d){
   const p=d.paradox;if(!p)return;
+  const panel=document.querySelector('.paradox-panel');
+  const complete=state.replay>=d.timeline.length;
+  if(panel)panel.classList.toggle('hidden',!complete);
+  if(!complete)return;
   $('paradoxBadge').textContent=paradoxSeverityLabel(p.priority);
   const flags=p.flags||[];
   const items=[
