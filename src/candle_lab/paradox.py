@@ -33,9 +33,11 @@ def detect_paradoxical_candle(
     buy_share = float(summary.get("buy_share_directed") or 0.0)
     sell_share = float(summary.get("sell_share_directed") or 0.0)
 
+    minimum_coverage = 0.30
+    sufficient_coverage = coverage >= minimum_coverage
     flags: list[dict[str, object]] = []
 
-    if relation == "DIVERGENTE" and coverage > 0:
+    if relation == "DIVERGENTE" and sufficient_coverage:
         score = min(1.0, 0.45 + 0.30 * dominance + 0.25 * coverage)
         if price_direction == "BAIXA" and buy_share > sell_share:
             code = "BAIXA_COM_COMPRA_AGRESSORA_DOMINANTE"
@@ -74,7 +76,7 @@ def detect_paradoxical_candle(
         })
 
     effort_events = [e for e in events if e.get("code") == "ESFORCO_SEM_RESULTADO"]
-    if effort_events:
+    if effort_events and sufficient_coverage:
         strongest = max(
             effort_events,
             key=lambda e: float(e.get("effort_vs_phase_median") or 0.0),
@@ -98,7 +100,7 @@ def detect_paradoxical_candle(
         e for e in events
         if str(e.get("code", "")).startswith("PERDA_EFICIENCIA_")
     ]
-    for event in decay_events:
+    for event in decay_events if sufficient_coverage else []:
         ratio = float(event.get("efficiency_ratio") or 1.0)
         score = min(1.0, 0.55 + (1.0 - max(0.0, ratio)) * 0.35)
         flags.append({
@@ -118,7 +120,7 @@ def detect_paradoxical_candle(
         })
 
     phases = list(flow_efficiency.get("phases") or [])
-    if len(phases) >= 2:
+    if sufficient_coverage and len(phases) >= 2:
         speeds = [float(p.get("directed_contracts_per_second") or 0.0) for p in phases]
         efficiencies = [
             p.get("dominant_response_ticks_per_1000")
@@ -158,9 +160,12 @@ def detect_paradoxical_candle(
         "paradoxical": bool(flags),
         "priority": _severity(highest) if flags else "NORMAL",
         "score": highest,
+        "minimum_aggressor_coverage": minimum_coverage,
+        "coverage_sufficient": sufficient_coverage,
         "flags": flags,
         "method": (
             "O detector procura inconsistências entre esforço agressor e resposta do preço. "
+            "Sinais só são priorizados quando a cobertura BUY/SELL é de pelo menos 30%. "
             "Ele prioriza candles para investigação; não conclui automaticamente absorção, manipulação ou reversão."
         ),
     }
