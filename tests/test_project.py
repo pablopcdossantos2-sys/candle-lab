@@ -7,6 +7,8 @@ from pathlib import Path
 from candle_lab.aggression import aggression_analysis
 from candle_lab.aggression_waves import aggression_wave_analysis
 from candle_lab.interpretation import interpret_candle
+from candle_lab.flow_efficiency import flow_efficiency_analysis
+from candle_lab.paradox import detect_paradoxical_candle
 from candle_lab.historical_validation import validate_historical_hypotheses
 from candle_lab.candles import build_candles
 from candle_lab.counterfactual import generate_ohlc_path
@@ -133,6 +135,87 @@ class AggressionAnalysisTests(unittest.TestCase):
         level101=next(x for x in report["levels"] if x["price_ticks"]==101)
         self.assertEqual(level101["response"],"SEM_JANELA_POS_AGRESSAO")
         self.assertEqual(level101["future_observations"],0)
+
+class FlowEfficiencyTests(unittest.TestCase):
+    def test_detects_effort_without_result_and_efficiency_decay(self):
+        tz=ZoneInfo("America/Sao_Paulo")
+        start=datetime(2026,10,8,12,0,tzinfo=tz)
+        trades=[]
+        # Início: BUY produz deslocamento.
+        prices1=[100,101,102,103,104,105,105,105,105,105]
+        for i,p in enumerate(prices1):
+            trades.append(Trade(
+                "WINEFF",start+timedelta(seconds=i),p,10,
+                aggressor=AggressorSide.BUY,buyer_id="BUYER_A",sequence_no=i+1
+            ))
+        # Meio: mais esforço BUY, quase nenhum resultado.
+        for i in range(10,20):
+            trades.append(Trade(
+                "WINEFF",start+timedelta(seconds=i),105,25,
+                aggressor=AggressorSide.BUY,buyer_id="BUYER_A",sequence_no=i+1
+            ))
+        # Final: BUY continua, mas preço responde contra.
+        for i in range(20,30):
+            trades.append(Trade(
+                "WINEFF",start+timedelta(seconds=i),105-(i-20)//2,20,
+                aggressor=AggressorSide.BUY,buyer_id="BUYER_A",sequence_no=i+1
+            ))
+
+        aggression=aggression_analysis(trades,5.0)
+        report=flow_efficiency_analysis(trades,tick_size=5.0,aggression=aggression)
+        self.assertEqual(len(report["phases"]),3)
+        self.assertTrue(report["summary"]["paradox_candidate"])
+        codes={e["code"] for e in report["events"]}
+        self.assertIn("ESFORCO_SEM_RESULTADO",codes)
+        self.assertIn("PERDA_EFICIENCIA_BUY",codes)
+        self.assertGreater(report["effort"]["contracts_per_second"],0)
+        self.assertIsNotNone(report["response"]["buy_response_ticks_per_1000"])
+
+    def test_paradox_detector_marks_down_candle_with_buy_dominance(self):
+        tz=ZoneInfo("America/Sao_Paulo")
+        start=datetime(2026,10,8,12,30,tzinfo=tz)
+        prices=[105,104,104,103,103,102,102,101,101,100,100,99]
+        trades=[
+            Trade(
+                "WINPAR",start+timedelta(seconds=i),p,20 if i<9 else 5,
+                aggressor=AggressorSide.BUY if i<9 else AggressorSide.SELL,
+                buyer_id="BUYER_A",seller_id="SELLER_B",sequence_no=i+1
+            )
+            for i,p in enumerate(prices)
+        ]
+        candle=build_candles(trades,60)[0]
+        aggression=aggression_analysis(trades,5.0)
+        efficiency=flow_efficiency_analysis(trades,tick_size=5.0,aggression=aggression)
+        paradox=detect_paradoxical_candle(
+            candle=candle,aggression=aggression,flow_efficiency=efficiency
+        )
+        codes={x["code"] for x in paradox["flags"]}
+        self.assertTrue(paradox["paradoxical"])
+        self.assertIn("BAIXA_COM_COMPRA_AGRESSORA_DOMINANTE",codes)
+        self.assertIn(paradox["priority"],{"MODERADA","ALTA","MUITO_ALTA"})
+
+    def test_candle_detail_includes_effort_result_layers(self):
+        tz=ZoneInfo("America/Sao_Paulo")
+        start=datetime(2026,10,8,13,0,tzinfo=tz)
+        trades=[
+            Trade(
+                "WINDETAIL",start+timedelta(seconds=i),100+(i//5),5,
+                aggressor=AggressorSide.BUY if i%4 else AggressorSide.SELL,
+                buyer_id="B1",seller_id="S1",sequence_no=i+1
+            )
+            for i in range(30)
+        ]
+        payload=candle_detail_payload(trades,60,5.0)
+        self.assertIn("flow_efficiency",payload)
+        self.assertIn("paradox",payload)
+        self.assertIn("initiative",payload["flow_efficiency"])
+        self.assertIn("effort",payload["flow_efficiency"])
+        self.assertIn("response",payload["flow_efficiency"])
+        self.assertEqual(
+            payload["interpretation"]["audit"]["flow_efficiency_model_version"],
+            payload["flow_efficiency"]["model_version"],
+        )
+
 
 class AggressionWaveTests(unittest.TestCase):
     def _trade(self,start,i,price,side,qty=10,agent="A"):
@@ -1048,6 +1131,8 @@ class UiContractTests(unittest.TestCase):
             "indexProgressWrap","indexProgressPct","indexProgressText","indexProgressBar",
             "sliceProgressWrap","sliceProgressPct","sliceProgressText","sliceProgressBar",
             "aggressionKpis","topBuyAggressors","topSellAggressors","aggressionBody","aggressionMethod",
+            "flowEfficiencyKpis","flowEfficiencyBody","flowEfficiencyEvents","flowEfficiencyMethod",
+            "paradoxBadge","paradoxSummary","paradoxFlags","paradoxMethod",
             "waveSummary","openWaveBox","waveBody","waveMethod",
             "interpretationReplayNotice","interpretationContent","interpretationQuality",
             "closingSynthesis","processDescription","observedFacts","hypothesisList",
@@ -1067,6 +1152,8 @@ class UiContractTests(unittest.TestCase):
         self.assertIn("/api/slice-import/start", js)
         self.assertIn("/api/slice-import/jobs/", js)
         self.assertIn("renderAggressionWaves", js)
+        self.assertIn("renderFlowEfficiency", js)
+        self.assertIn("renderParadox", js)
         self.assertIn("drawWaveTerminationMarkers", js)
         self.assertIn("renderInterpretation", js)
         self.assertIn("copyInterpretation", js)
