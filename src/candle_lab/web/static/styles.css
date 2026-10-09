@@ -63,3 +63,7 @@
 .interpretation-item.limitation{background:#101820}
 #copyInterpretationBtn{margin-top:10px}
 @media(max-width:900px){.interpretation-grid{grid-template-columns:1fr}.hypothesis-head{display:block}.confidence-badge{display:inline-block;margin-top:7px}}
+
+.flow-efficiency-panel,.paradox-panel{margin-top:18px;padding-top:14px;border-top:1px solid #24384b}
+.paradox-panel #paradoxBadge{min-width:88px;text-align:center}
+.flow-efficiency-panel table small,.paradox-panel small{color:#8fa1b5}
