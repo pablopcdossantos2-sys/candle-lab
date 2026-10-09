@@ -221,6 +221,28 @@ class FlowEfficiencyTests(unittest.TestCase):
         codes={flag["code"] for flag in first["flags"]}
         self.assertIn("BAIXA_COM_COMPRA_AGRESSORA_DOMINANTE",codes)
 
+    def test_paradox_detector_requires_minimum_aggressor_coverage(self):
+        tz=ZoneInfo("America/Sao_Paulo")
+        start=datetime(2026,10,8,12,45,tzinfo=tz)
+        trades=[]
+        for i,p in enumerate([105,104,103,102,101,100,99,98,97,96]):
+            side=AggressorSide.BUY if i==0 else AggressorSide.NONE
+            flags=None if i==0 else "raw_aggressor=RLP"
+            trades.append(Trade(
+                "WINLOWCOV",start+timedelta(seconds=i),p,10,
+                aggressor=side,buyer_id="BUYER_A",flags=flags,sequence_no=i+1
+            ))
+        candle=build_candles(trades,60)[0]
+        aggression=aggression_analysis(trades,5.0)
+        efficiency=flow_efficiency_analysis(trades,tick_size=5.0,aggression=aggression)
+        paradox=detect_paradoxical_candle(
+            candle=candle,aggression=aggression,flow_efficiency=efficiency
+        )
+        self.assertLess(aggression["summary"]["aggressor_coverage"],0.30)
+        self.assertFalse(paradox["coverage_sufficient"])
+        self.assertFalse(paradox["paradoxical"])
+        self.assertEqual(paradox["flags"],[])
+
     def test_candle_detail_includes_effort_result_layers(self):
         tz=ZoneInfo("America/Sao_Paulo")
         start=datetime(2026,10,8,13,0,tzinfo=tz)
