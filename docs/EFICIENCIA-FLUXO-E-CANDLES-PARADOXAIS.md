@@ -322,3 +322,18 @@ A ferramenta:
 A tabela de varredura mostra horário, abertura, fechamento, prioridade, score e os principais sinais detectados.
 
 Essa função foi criada para reduzir o trabalho manual de procurar candle a candle por situações incomuns.
+
+
+## 14. Cobertura mínima para sinal paradoxal
+
+Para evitar que poucos negócios BUY/SELL conhecidos gerem uma classificação exagerada, a v0.20 exige inicialmente:
+
+```text
+Cobertura do agressor >= 30%
+```
+
+para priorizar sinais do Detector de Candles Paradoxais.
+
+Abaixo desse limite, as métricas continuam disponíveis para inspeção, mas o candle não é marcado como paradoxal pelas regras atuais.
+
+Esse limiar é heurístico e deverá ser reavaliado com a biblioteca histórica.
