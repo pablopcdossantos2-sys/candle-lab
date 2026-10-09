@@ -19,7 +19,7 @@ from candle_lab.reconciliation import import_reference_candles, reconcile_observ
 from candle_lab.sample import generate_builtin_sample
 from candle_lab.quality import assess_library_quality
 from candle_lab.storage import MarketStore
-from candle_lab.services import candle_detail_payload
+from candle_lab.services import candle_detail_payload, paradoxical_candles_payload
 from candle_lab.trajectory import classify_rule_family, deterministic_kmeans
 from candle_lab.transitions import analyze_stability_and_transitions
 from candle_lab.bulk import bulk_import_profit_file, aggregate_candles_sql, reconcile_store_references, export_session_parquet
@@ -193,6 +193,33 @@ class FlowEfficiencyTests(unittest.TestCase):
         self.assertTrue(paradox["paradoxical"])
         self.assertIn("BAIXA_COM_COMPRA_AGRESSORA_DOMINANTE",codes)
         self.assertIn(paradox["priority"],{"MODERADA","ALTA","MUITO_ALTA"})
+
+    def test_session_scan_prioritizes_paradoxical_candles(self):
+        tz=ZoneInfo("America/Sao_Paulo")
+        base=datetime(2026,10,8,14,0,tzinfo=tz)
+        trades=[]
+        # Candle 1: baixa com forte predominância BUY.
+        for i,p in enumerate([105,104,103,102,101,100]):
+            trades.append(Trade(
+                "WINSCAN",base+timedelta(seconds=i*8),p,20,
+                aggressor=AggressorSide.BUY if i<5 else AggressorSide.SELL,
+                buyer_id="BUYER_A",seller_id="SELLER_A",sequence_no=i+1
+            ))
+        # Candle 2: alta alinhada a BUY, usado como contraste.
+        for j,p in enumerate([100,101,102,103,104,105]):
+            trades.append(Trade(
+                "WINSCAN",base+timedelta(minutes=1,seconds=j*8),p,10,
+                aggressor=AggressorSide.BUY,buyer_id="BUYER_B",
+                sequence_no=100+j
+            ))
+        report=paradoxical_candles_payload(
+            trades,interval_seconds=60,tick_size=5.0,limit=20
+        )
+        self.assertEqual(report["candles_scanned"],2)
+        self.assertGreaterEqual(report["paradoxical_candles"],1)
+        first=report["results"][0]
+        codes={flag["code"] for flag in first["flags"]}
+        self.assertIn("BAIXA_COM_COMPRA_AGRESSORA_DOMINANTE",codes)
 
     def test_candle_detail_includes_effort_result_layers(self):
         tz=ZoneInfo("America/Sao_Paulo")
@@ -1133,6 +1160,7 @@ class UiContractTests(unittest.TestCase):
             "aggressionKpis","topBuyAggressors","topSellAggressors","aggressionBody","aggressionMethod",
             "flowEfficiencyKpis","flowEfficiencyBody","flowEfficiencyEvents","flowEfficiencyMethod",
             "paradoxBadge","paradoxSummary","paradoxFlags","paradoxMethod",
+            "paradoxScanCard","paradoxScanBtn","paradoxScanSummary","paradoxScanNotice","paradoxScanBody",
             "waveSummary","openWaveBox","waveBody","waveMethod",
             "interpretationReplayNotice","interpretationContent","interpretationQuality",
             "closingSynthesis","processDescription","observedFacts","hypothesisList",
@@ -1154,6 +1182,8 @@ class UiContractTests(unittest.TestCase):
         self.assertIn("renderAggressionWaves", js)
         self.assertIn("renderFlowEfficiency", js)
         self.assertIn("renderParadox", js)
+        self.assertIn("paradoxScan", js)
+        self.assertIn("/api/research/paradox-candles", js)
         self.assertIn("drawWaveTerminationMarkers", js)
         self.assertIn("renderInterpretation", js)
         self.assertIn("copyInterpretation", js)
