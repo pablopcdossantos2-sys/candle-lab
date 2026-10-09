@@ -280,6 +280,8 @@ O gráfico também ganhou:
 A seleção continua vinculada aos candles reais do CSV OHLC, e o índice temporal v0.13 continua convertendo os limites selecionados em linhas e offsets de byte exatos do CSV Tick by Tick.
 
 Veja `docs/TUTORIAL-INSTALACAO-E-USO-WINDOWS.md`.
+Veja também `docs/TUTORIAL-CAPTURA-LIQUIDEZ-PASSIVA-PROFIT-ULTRA.md` para o procedimento de captura de liquidez passiva via Livro de Ofertas + RTD/DDE e as limitações do histórico de book.
+
 
 ### 16. Caminhos contrafactuais
 
