@@ -532,6 +532,98 @@ function renderAggression(d){
   }).join('');
   $('aggressionMethod').textContent=a.method+' '+a.intensity_method+' '+a.limitations;
 }
+function flowEfficiencyLabel(x){
+  return ({
+    ALTA:'Alta',
+    MODERADA:'Moderada',
+    BAIXA:'Baixa',
+    SEM_RESPOSTA:'Sem resposta',
+    RESPOSTA_OPOSTA:'Resposta oposta',
+    FLUXO_EQUILIBRADO:'Fluxo equilibrado',
+    SEM_DADOS:'Sem dados'
+  })[x]||x;
+}
+function flowSideLabel(x){
+  return ({BUY:'Compra',SELL:'Venda',EQUILIBRADO:'Equilibrado',SEM_DADOS:'Sem dados'})[x]||x;
+}
+function fmtSigned(x,decimals=2){
+  if(x==null||!Number.isFinite(Number(x)))return '—';
+  const v=Number(x);
+  return (v>0?'+':'')+n(v,decimals);
+}
+function renderFlowEfficiency(d){
+  const f=d.flow_efficiency;if(!f)return;
+  const i=f.initiative||{},e=f.effort||{},r=f.response||{},sm=f.summary||{};
+  const items=[
+    ['Iniciativa',flowSideLabel(i.side)],
+    ['Relação preço × fluxo',sm.relation||'—'],
+    ['Agressão direcionada',n(e.directed_aggression||0,0)],
+    ['Cobertura do esforço',pct(e.directed_share_total||0)],
+    ['Velocidade',n(e.contracts_per_second||0,1)+' ctr/s'],
+    ['Resposta líquida',fmtSigned(r.price_change_ticks||0,0)+' tick(s)'],
+    ['Ticks / 1.000 ctr',fmtSigned(r.ticks_per_1000_directed,2)],
+    ['Candidato paradoxal',sm.paradox_candidate?'SIM':'não']
+  ];
+  $('flowEfficiencyKpis').innerHTML=items.map(v=>
+    '<div class="kpi"><span>'+esc(v[0])+'</span><strong>'+esc(v[1])+'</strong></div>'
+  ).join('');
+
+  $('flowEfficiencyBody').innerHTML=(f.phases||[]).map(p=>{
+    const eff=p.dominant_response_ticks_per_1000;
+    return '<tr>'+
+      '<td><strong>'+esc(p.phase)+'</strong><br><small>#'+n(p.start_trade_number,0)+'–#'+n(p.end_trade_number,0)+'</small></td>'+
+      '<td>'+esc(flowSideLabel(p.flow_direction))+'<br><small>dom. '+(p.dominance==null?'—':pct(p.dominance))+'</small></td>'+
+      '<td>'+n(p.buy_aggression,0)+'</td>'+
+      '<td>'+n(p.sell_aggression,0)+'</td>'+
+      '<td>'+n(p.directed_contracts_per_second||0,1)+' ctr/s</td>'+
+      '<td>'+fmtSigned(p.price_change_ticks||0,0)+' tick(s)</td>'+
+      '<td>'+fmtSigned(eff,2)+'<br><small>ticks / 1.000 ctr</small></td>'+
+      '<td><span class="intensity">'+esc(flowEfficiencyLabel(p.efficiency_label))+'</span></td>'+
+    '</tr>';
+  }).join('');
+
+  $('flowEfficiencyEvents').innerHTML=(f.events||[]).map(ev=>
+    '<article class="hypothesis-card">'+
+      '<div class="hypothesis-head"><div><small>'+esc(ev.code||'EVENTO')+'</small><h5>'+esc(ev.description||'Evento de eficiência')+'</h5></div></div>'+
+      '<p>'+(
+        ev.code==='ESFORCO_SEM_RESULTADO'
+          ? 'O esforço agressor permaneceu relevante, mas a resposta do preço foi pequena, nula ou contrária.'
+          : 'A capacidade do lado agressor de deslocar o preço deteriorou-se ao longo do candle.'
+      )+'</p>'+
+    '</article>'
+  ).join('')||'<p class="muted">Nenhum evento relevante de perda de eficiência foi detectado.</p>';
+
+  $('flowEfficiencyMethod').textContent=f.method+' '+f.limitations;
+}
+
+function paradoxSeverityLabel(x){
+  return ({MUITO_ALTA:'Muito alta',ALTA:'Alta',MODERADA:'Moderada',BAIXA:'Baixa',NORMAL:'Normal'})[x]||x;
+}
+function renderParadox(d){
+  const p=d.paradox;if(!p)return;
+  $('paradoxBadge').textContent=paradoxSeverityLabel(p.priority);
+  const flags=p.flags||[];
+  const items=[
+    ['Status',p.paradoxical?'PARADOXAL / INVESTIGAR':'Normal'],
+    ['Prioridade',paradoxSeverityLabel(p.priority)],
+    ['Score de prioridade',pct(p.score||0)],
+    ['Sinais detectados',n(flags.length,0)]
+  ];
+  $('paradoxSummary').innerHTML=items.map(v=>
+    '<div class="kpi"><span>'+esc(v[0])+'</span><strong>'+esc(v[1])+'</strong></div>'
+  ).join('');
+
+  $('paradoxFlags').innerHTML=flags.map((flag,i)=>
+    '<article class="hypothesis-card confidence-'+(flag.score>=.72?'forte':flag.score>=.48?'moderada':'fraca')+'">'+
+      '<div class="hypothesis-head"><div><small>Sinal '+(i+1)+' · '+esc(flag.code)+'</small><h5>'+esc(flag.title)+'</h5></div>'+
+      '<span class="confidence-badge">'+esc(paradoxSeverityLabel(flag.severity))+' · '+n((flag.score||0)*100,0)+'%</span></div>'+
+      '<p>'+esc(flag.explanation)+'</p>'+
+    '</article>'
+  ).join('')||'<p class="muted">Nenhuma divergência importante entre esforço e resultado foi detectada.</p>';
+
+  $('paradoxMethod').textContent=p.method;
+}
+
 function waveTypeLabel(x){
   return ({EXAUSTAO:'Exaustão',NEUTRALIZACAO:'Neutralização',TROCA_CONTROLE:'Troca de controle'})[x]||x;
 }
@@ -609,6 +701,8 @@ function renderDetail(){
   $('volumeLevels').innerHTML=d.volume_by_price.slice(0,40).map(x=>'<div class="level"><span>'+n(x.price)+'</span><strong>'+n(x.volume,0)+' · Δ '+n(x.delta,0)+'</strong></div>').join('');
   renderInterpretation(d);
   renderAggression(d);
+  renderFlowEfficiency(d);
+  renderParadox(d);
   renderAggressionWaves(d);
   const shown=d.timeline.slice(0,state.replay);
   $('tradeBody').innerHTML=shown.slice(-250).map(t=>'<tr><td>'+(t.index+1)+'</td><td>'+clock(t.ts)+'</td><td>'+n(t.price)+'</td><td>'+t.quantity+'</td><td>'+t.aggressor+'</td><td>'+esc(t.buyer_id||'—')+'</td><td>'+esc(t.seller_id||'—')+'</td></tr>').join('');
