@@ -347,7 +347,7 @@ async function loadSessions(){
 
 async function loadCandles(){
   clearInterval(state.timer);state.detail=null;state.selected=null;
-  ['labCard','researchCard','trajectoryCard','transitionCard'].forEach(id=>$(id).classList.add('hidden'));
+  ['labCard','researchCard','paradoxScanCard','validationCard','trajectoryCard','transitionCard'].forEach(id=>$(id).classList.add('hidden'));
   const symbol=$('symbolSelect').value,date=$('sessionSelect').value,interval=$('intervalSelect').value;if(!symbol||!date)return;
   state.candles=await api('/api/candles?symbol='+encodeURIComponent(symbol)+'&session_date='+date+'&interval_seconds='+interval);
   $('candleBody').innerHTML=state.candles.map((c,i)=>'<tr data-i="'+i+'"><td>'+clock(c.start)+'</td><td>'+n(c.open)+'</td><td>'+n(c.high)+'</td><td>'+n(c.low)+'</td><td>'+n(c.close)+'</td><td>'+n(c.volume,0)+'</td><td>'+n(c.trades,0)+'</td></tr>').join('');
@@ -361,7 +361,7 @@ async function selectCandle(i,row){
   state.selected=state.candles[i];const symbol=$('symbolSelect').value,interval=$('intervalSelect').value;
   state.detail=await api('/api/candle-detail?symbol='+encodeURIComponent(symbol)+'&start='+encodeURIComponent(state.selected.start)+'&interval_seconds='+interval);
   state.replay=state.detail.timeline.length;$('selectedTitle').textContent=symbol+' · '+new Date(state.selected.start).toLocaleString('pt-BR');
-  ['labCard','researchCard','validationCard','trajectoryCard','transitionCard'].forEach(id=>$(id).classList.remove('hidden'));renderDetail();
+  ['labCard','researchCard','paradoxScanCard','validationCard','trajectoryCard','transitionCard'].forEach(id=>$(id).classList.remove('hidden'));renderDetail();
 }
 
 function aggressionIntensityLabel(x){
@@ -710,6 +710,48 @@ function renderDetail(){
 }
 function play(){clearInterval(state.timer);state.replay=0;state.timer=setInterval(()=>{state.replay=Math.min(state.replay+1,state.detail.timeline.length);renderDetail();if(state.replay>=state.detail.timeline.length)clearInterval(state.timer)},35)}
 function matchHtml(rows){return (rows||[]).map(x=>'<div class="match"><span>'+new Date(x.feature.start).toLocaleString('pt-BR')+'<br><small>'+x.feature.session_regime+' · '+x.feature.volatility_bucket+'</small></span><strong>'+n(x.score,1)+'%</strong></div>').join('')||'<p>Sem candidatos.</p>'}
+
+async function openParadoxCandle(start){
+  const index=(state.candles||[]).findIndex(c=>c.start===start);
+  if(index<0)return;
+  const row=document.querySelector('#candleBody tr[data-i="'+index+'"]');
+  if(row)await selectCandle(index,row);
+}
+async function paradoxScan(){
+  const symbol=$('symbolSelect').value,date=$('sessionSelect').value,interval=$('intervalSelect').value;
+  if(!symbol||!date)return;
+  $('paradoxScanBtn').disabled=true;
+  $('paradoxScanNotice').textContent='Analisando iniciativa, esforço e resposta de cada candle do pregão…';
+  try{
+    const p=new URLSearchParams({symbol,session_date:date,interval_seconds:interval,limit:'100'});
+    const r=await api('/api/research/paradox-candles?'+p);
+    const items=[
+      ['Candles varridos',n(r.candles_scanned||0,0)],
+      ['Paradoxais',n(r.paradoxical_candles||0,0)],
+      ['Participação',pct(r.share_paradoxical||0)]
+    ];
+    $('paradoxScanSummary').innerHTML=items.map(v=>'<div class="kpi"><span>'+esc(v[0])+'</span><strong>'+esc(v[1])+'</strong></div>').join('');
+    $('paradoxScanBody').innerHTML=(r.results||[]).map(x=>{
+      const flags=(x.flags||[]).slice(0,3).map(f=>esc(f.title)).join('<br>');
+      return '<tr>'+
+        '<td><strong>'+clock(x.candle.start)+'</strong></td>'+
+        '<td>'+n(x.candle.open)+'</td>'+
+        '<td>'+n(x.candle.close)+'</td>'+
+        '<td>'+esc(paradoxSeverityLabel(x.priority))+'</td>'+
+        '<td>'+pct(x.score||0)+'</td>'+
+        '<td>'+flags+'</td>'+
+        '<td><button class="paradox-open" data-start="'+esc(x.candle.start)+'">Abrir</button></td>'+
+      '</tr>';
+    }).join('')||'<tr><td colspan="7">Nenhum candle paradoxal foi detectado neste pregão com as regras atuais.</td></tr>';
+    document.querySelectorAll('.paradox-open').forEach(btn=>btn.onclick=()=>openParadoxCandle(btn.dataset.start));
+    $('paradoxScanNotice').textContent=r.method;
+  }catch(err){
+    $('paradoxScanNotice').textContent='Erro: '+err.message;
+    $('paradoxScanBody').innerHTML='';
+  }finally{
+    $('paradoxScanBtn').disabled=false;
+  }
+}
 async function research(){if(!state.selected)return;const p=new URLSearchParams({symbol:$('symbolSelect').value,start:state.selected.start,interval_seconds:$('intervalSelect').value,same_time:$('sameTime').checked,same_volatility:$('sameVol').checked,same_context_regime:$('sameContext').checked,other_sessions_only:$('otherSessions').checked,quality_only:'true'});const r=await api('/api/research/search?'+p);$('visualMatches').innerHTML=matchHtml(r.visual_matches);$('dnaMatches').innerHTML=matchHtml(r.dna_matches)}
 function hypothesisCodeLabel(code){
   return ({
@@ -1045,6 +1087,7 @@ $('overviewSymbolSelect').onchange=loadOverviewSessions;$('overviewSessionSelect
 $('refreshBtn').onclick=refresh;$('symbolSelect').onchange=loadSessions;$('sessionSelect').onchange=loadCandles;$('intervalSelect').onchange=loadCandles;
 $('playBtn').onclick=play;$('stepBtn').onclick=()=>{state.replay=Math.min(state.replay+1,state.detail.timeline.length);renderDetail()};$('resetBtn').onclick=()=>{clearInterval(state.timer);state.replay=0;renderDetail()};
 $('researchBtn').onclick=research;$('trajectoryBtn').onclick=trajectory;$('transitionBtn').onclick=transitions;
+$('paradoxScanBtn').onclick=paradoxScan;
 $('historicalValidationBtn').onclick=historicalValidation;
 $('downloadValidationBtn').onclick=downloadHistoricalValidation;
 $('copyInterpretationBtn').onclick=copyInterpretation;
