@@ -832,3 +832,8 @@ Esses sinais servem para **priorizar investigação**. O score do detector não 
 O Relatório Interpretativo passa a incorporar fatos e hipóteses derivados da eficiência do fluxo.
 
 Veja `docs/EFICIENCIA-FLUXO-E-CANDLES-PARADOXAIS.md`.
+
+
+### Varredura automática do pregão
+
+A seção **Varredura de candles paradoxais** analisa todos os candles do pregão atualmente carregado e lista, por prioridade, os casos em que esforço e resultado entram em conflito. Um botão **Abrir** leva diretamente ao Laboratório do candle selecionado.
