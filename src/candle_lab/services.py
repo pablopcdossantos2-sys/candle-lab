@@ -124,6 +124,8 @@ def candle_detail_payload(trades: list[Trade], interval_seconds: int, tick_size:
         aggression=aggression,
         waves=aggression_waves,
         tick_size=tick_size,
+        flow_efficiency=flow_efficiency,
+        paradox=paradox,
     )
 
     points = max(16, min(160, len(ordered)))
