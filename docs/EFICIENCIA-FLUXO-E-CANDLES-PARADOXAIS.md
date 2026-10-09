@@ -304,3 +304,21 @@ Com uma biblioteca histórica maior, o Candle Lab poderá responder:
 - candles paradoxais formam famílias recorrentes?
 
 A prioridade é validar esses eventos historicamente antes de convertê-los em indicadores operacionais.
+
+
+## 13. Varredura do pregão inteiro
+
+A v0.20 também permite varrer todos os candles disponíveis no pregão selecionado.
+
+A ferramenta:
+
+1. reconstrói cada candle a partir dos negócios armazenados;
+2. calcula agressão e composição BUY/SELL;
+3. calcula eficiência do fluxo;
+4. executa o Detector de Candles Paradoxais;
+5. ordena os resultados pelo score de prioridade;
+6. permite abrir diretamente um candle encontrado para análise detalhada.
+
+A tabela de varredura mostra horário, abertura, fechamento, prioridade, score e os principais sinais detectados.
+
+Essa função foi criada para reduzir o trabalho manual de procurar candle a candle por situações incomuns.
