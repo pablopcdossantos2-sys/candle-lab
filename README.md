@@ -2,7 +2,7 @@
 
 **Laboratório local para investigar como candles de futuros da B3 são formados negócio a negócio.**
 
-Versão atual: **0.19.1**
+Versão atual: **0.20.0**
 
 O Candle Lab B3 nasceu de uma pergunta simples: **dois candles visualmente parecidos necessariamente foram formados da mesma maneira?**
 
@@ -802,3 +802,33 @@ A v0.19.1 consolida a etapa iniciada na v0.18:
 A validação histórica continua sendo um funil de pesquisa, não uma declaração automática de vantagem operacional.
 
 Fluxo operacional completo: `docs/TUTORIAL-VALIDACAO-E-INDICADORES.md`.
+
+
+## Eficiência do fluxo e Detector de Candles Paradoxais — v0.20.0
+
+A v0.20 adiciona uma camada explícita de **iniciativa → esforço → resposta do preço**.
+
+Para cada candle e para cada terço cronológico, o Candle Lab passa a medir:
+
+- lado predominante da agressão;
+- volume agressor BUY/SELL;
+- contratos agressores por segundo;
+- deslocamento do preço;
+- ticks por 1.000 contratos de agressão;
+- eficiência do lado dominante;
+- perda de eficiência entre fases;
+- esforço agressor elevado com pouco ou nenhum resultado.
+
+Também foi criado o **Detector de Candles Paradoxais**, que destaca automaticamente casos como:
+
+- candle de baixa com compra agressora dominante;
+- candle de alta com venda agressora dominante;
+- agressão forte sem deslocamento proporcional;
+- agressão persistente com eficiência decrescente;
+- agressão acelerando enquanto a eficiência cai.
+
+Esses sinais servem para **priorizar investigação**. O score do detector não é probabilidade de reversão nem prova de absorção.
+
+O Relatório Interpretativo passa a incorporar fatos e hipóteses derivados da eficiência do fluxo.
+
+Veja `docs/EFICIENCIA-FLUXO-E-CANDLES-PARADOXAIS.md`.
