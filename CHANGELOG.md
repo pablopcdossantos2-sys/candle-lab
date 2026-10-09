@@ -12,7 +12,9 @@
 - classifica prioridade de investigação como BAIXA, MODERADA, ALTA ou MUITO_ALTA;
 - integra eficiência e paradoxos ao Relatório Interpretativo;
 - adiciona painéis de Eficiência do Fluxo e Candles Paradoxais ao Laboratório;
-- adiciona testes para esforço sem resultado, perda de eficiência, divergência preço × fluxo e contrato da UI;
+- adiciona varredura do pregão inteiro para ordenar candles paradoxais por prioridade;
+- adiciona endpoint `/api/research/paradox-candles` e ação `Abrir` na tabela de triagem;
+- adiciona testes para esforço sem resultado, perda de eficiência, divergência preço × fluxo, varredura de sessão e contrato da UI;
 - documenta metodologia em `docs/EFICIENCIA-FLUXO-E-CANDLES-PARADOXAIS.md`;
 - mantém scores como heurísticas de priorização, não probabilidades estatísticas.
 
